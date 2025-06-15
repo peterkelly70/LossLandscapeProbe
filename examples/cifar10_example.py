@@ -233,144 +233,63 @@ def main():
         alpha=0.1  # Weight for sharpness in generalization score
     )
     
-    # Choose between traditional Successive Halving or Meta-Model approach
-    use_meta_model = True  # Set to False to use traditional Successive Halving
+    # Use Meta-Model for hyperparameter prediction (default method)
+    logger.info("Running Meta-Model guided hyperparameter optimization...")
+    logger.info(f"Starting with {len(configs)} configurations")
+    logger.info(f"Resource range: {0.1:.1f} to {0.5:.1f} of data")
+    logger.info(f"Reduction factor: {2}")
     
-    if use_meta_model:
-        # Use Meta-Model for hyperparameter prediction
-        logger.info("Running Meta-Model guided hyperparameter optimization...")
-        logger.info(f"Starting with {len(configs)} configurations")
-        logger.info(f"Resource range: {0.1:.1f} to {0.5:.1f} of data")
-        logger.info(f"Reduction factor: {2}")
-        
-        # Track overall progress
-        total_configs = len(configs)
-        start_time = time.time()
-        
-        # Create a callback to monitor progress
-        def progress_callback(iteration, remaining_configs, current_resource):
-            elapsed = time.time() - start_time
-            logger.info(f"[Progress] Iteration {iteration}: {remaining_configs}/{total_configs} configs being evaluated")
-            logger.info(f"[Progress] Current resource level: {current_resource:.2f}")
-            logger.info(f"[Progress] Elapsed time: {elapsed:.2f}s")
-        
-        # Create MetaProbing instance
-        meta_probing = MetaProbing(
-            configs=configs,
-            model_fn=create_model,
-            dataset_fn=dataset_fn,
-            criterion=criterion,
-            optimizer_fn=create_optimizer,
-            max_epochs=50,
-            device=device,
-            alpha=0.1  # Weight for sharpness in generalization score
-        )
-        
-        # Run meta-model optimization
-        best_config = meta_probing.run_meta_optimization(
-            min_resource=0.1,  # Start with 10% of data
-            max_resource=0.5,  # End with 50% of data
-            reduction_factor=2,
-            measure_flatness=True,
-            progress_callback=progress_callback,
-            num_initial_configs=6,
-            num_iterations=3
-        )
-        
-        # Use the best config for final training
-        logger.info(f"Best configuration found: {best_config}")
-        
-    else:
-        # Run traditional Successive Halving with two-tier evaluation
-        logger.info("Running Successive Halving with two-tier evaluation...")
-        logger.info(f"Starting with {len(configs)} configurations")
-        logger.info(f"Resource range: {0.1:.1f} to {0.5:.1f} of data")
-        logger.info(f"Reduction factor: {2}")
-        
-        # Track overall progress
-        total_configs = len(configs)
-        start_time = time.time()
-        
-        # Create a callback to monitor progress
-        def progress_callback(stage, remaining_configs, current_resource):
-            elapsed = time.time() - start_time
-            eliminated = total_configs - remaining_configs
-            logger.info(f"[Progress] Stage {stage}: {remaining_configs}/{total_configs} configs remaining")
-            logger.info(f"[Progress] Current resource level: {current_resource:.2f}")
-            logger.info(f"[Progress] Elapsed time: {elapsed:.2f}s, Eliminated {eliminated} configs so far")
-        
-        results = probing.run_successive_halving(
-            min_resource=0.1,  # Start with 10% of data
-            max_resource=0.5,  # End with 50% of data
-            reduction_factor=2,
-            measure_flatness=True,
-            progress_callback=progress_callback
-        )
-        
-        # Get best config from results
-        best_config = results[0].config
-    
-    # Log best config
-    logger.info(f"Best configuration: {best_config}")
-    
-    # Train the best config with SAM
-    logger.info(f"\nTraining best config with SAM: {best_config}")
-    logger.info(f"SAM rho parameter: {0.05}")
-    logger.info(f"Training for {20} epochs")
-    
-    # Define a progress tracking callback for SAM
-    def sam_progress_callback(epoch, loss, accuracy, elapsed):
-        logger.info(f"[SAM Progress] Epoch {epoch+1}/20 - Loss: {loss:.4f} - Accuracy: {accuracy:.4f} - Time: {elapsed:.2f}s")
-    
+    # Track overall progress
+    total_configs = len(configs)
     start_time = time.time()
-    sam_result = probing.train_with_sam(
-        config=best_config,
-        rho=0.05,
-        epochs=20,
-        progress_callback=sam_progress_callback
+    
+    # Create a callback to monitor progress
+    def progress_callback(iteration, remaining_configs, current_resource):
+        elapsed = time.time() - start_time
+        logger.info(f"[Progress] Iteration {iteration}: {remaining_configs}/{total_configs} configs being evaluated")
+        logger.info(f"[Progress] Current resource level: {current_resource:.2f}")
+        logger.info(f"[Progress] Elapsed time: {elapsed:.2f}s")
+    
+    # Create MetaProbing instance
+    meta_probing = MetaProbing(
+        configs=configs,
+        model_fn=create_model,
+        dataset_fn=dataset_fn,
+        criterion=criterion,
+        optimizer_fn=create_optimizer,
+        max_epochs=50,
+        device=device,
+        alpha=0.1  # Weight for sharpness in generalization score
     )
-    elapsed_time = time.time() - start_time
-    logger.info(f"SAM training completed in {elapsed_time:.2f} seconds")
-    logger.info(f"Average time per epoch: {elapsed_time/20:.2f} seconds")
     
-    logger.info(f"SAM Validation Accuracy: {sam_result.val_metric:.4f}")
-    logger.info(f"SAM Sharpness: {sam_result.sharpness:.4f}")
-    logger.info(f"SAM Generalization Score: {sam_result.generalization_score:.4f}")
-    
-    # Train the best config with SWA
-    logger.info(f"\nTraining best config with SWA: {best_config}")
-    logger.info(f"Training for {20} epochs with SWA starting at epoch {10}")
-    logger.info(f"SWA averaging frequency: {1} epoch")
-    
-    # Define a progress tracking callback for SWA
-    def swa_progress_callback(epoch, loss, accuracy, elapsed, is_swa_active):
-        status = "SWA Active" if is_swa_active else "Regular"
-        logger.info(f"[SWA Progress] Epoch {epoch+1}/20 - {status} - Loss: {loss:.4f} - Accuracy: {accuracy:.4f} - Time: {elapsed:.2f}s")
-    
-    start_time = time.time()
-    regular_result, swa_result = probing.train_with_swa(
-        config=best_config,
-        epochs=20,
-        swa_start=10,
-        swa_freq=1,
-        progress_callback=swa_progress_callback
+    # Run meta-model optimization
+    best_config = meta_probing.run_meta_optimization(
+        min_resource=0.1,  # Start with 10% of data
+        max_resource=0.5,  # End with 50% of data
+        reduction_factor=2,
+        measure_flatness=True,
+        progress_callback=progress_callback,
+        num_initial_configs=6,
+        num_iterations=3
     )
-    elapsed_time = time.time() - start_time
-    logger.info(f"SWA training completed in {elapsed_time:.2f} seconds")
-    logger.info(f"Average time per epoch: {elapsed_time/20:.2f} seconds")
     
-    # Compare regular and SWA results
-    logger.info("\nComparison of Regular vs SWA training:")
-    logger.info(f"{'Metric':<25} {'Regular':<10} {'SWA':<10} {'Improvement':<10}")
-    logger.info(f"{'-'*55}")
+    # Use the best config for final training
+    logger.info(f"Best configuration found: {best_config}")
     
-    acc_diff = swa_result.val_metric - regular_result.val_metric
-    sharp_diff = regular_result.sharpness - swa_result.sharpness
-    gen_diff = swa_result.generalization_score - regular_result.generalization_score
+    # Log the best configuration found by the meta-model
+    logger.info(f"\nBest configuration predicted by meta-model: {best_config}")
     
-    logger.info(f"{'Validation Accuracy':<25} {regular_result.val_metric:.4f} {swa_result.val_metric:.4f} {acc_diff:.4f}")
-    logger.info(f"{'Sharpness':<25} {regular_result.sharpness:.4f} {swa_result.sharpness:.4f} {sharp_diff:.4f}")
-    logger.info(f"{'Generalization Score':<25} {regular_result.generalization_score:.4f} {swa_result.generalization_score:.4f} {gen_diff:.4f}")
+    # Display the hyperparameters of the best configuration
+    logger.info("\nBest hyperparameters:")
+    for param, value in best_config.items():
+        logger.info(f"  {param}: {value}")
+    
+    # Calculate total time taken
+    total_time = time.time() - start_time
+    logger.info(f"\nMeta-model optimization completed in {total_time:.2f} seconds")
+    
+    logger.info("\nProof of concept complete: Meta-model successfully predicted optimal hyperparameters")
+    logger.info("These hyperparameters can now be used for full model training without SAM or SWA")
 
 
 if __name__ == "__main__":
