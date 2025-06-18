@@ -47,8 +47,8 @@ class SuccessiveHalving:
         self,
         configs: List[Dict[str, Any]],
         train_fn: Callable,
-        min_resource: int = 1,
-        max_resource: int = 81,
+        min_sample_size: int = 1,
+        max_sample_size: int = 81,
         reduction_factor: int = 3,
         min_configs: int = 1
     ):
@@ -57,17 +57,17 @@ class SuccessiveHalving:
         
         Args:
             configs: List of hyperparameter configurations to evaluate
-            train_fn: Function that trains a model with given config and resources
-                     Should have signature: train_fn(config, resource) -> ConfigEvaluation
-            min_resource: Minimum resource (epochs/data fraction) to allocate
-            max_resource: Maximum resource to allocate
+            train_fn: Function that trains a model with given config and sample size
+                     Should have signature: train_fn(config, sample_size) -> ConfigEvaluation
+            min_sample_size: Minimum sample size (epochs/data fraction) to allocate
+            max_sample_size: Maximum sample size to allocate
             reduction_factor: Factor by which to reduce configs and increase resources
             min_configs: Minimum number of configurations to keep
         """
         self.configs = configs
         self.train_fn = train_fn
-        self.min_resource = min_resource
-        self.max_resource = max_resource
+        self.min_sample_size = min_sample_size
+        self.max_sample_size = max_sample_size
         self.reduction_factor = reduction_factor
         self.min_configs = min_configs
         self.results = []
@@ -80,16 +80,16 @@ class SuccessiveHalving:
             List of configuration evaluations, sorted by performance
         """
         active_configs = self.configs.copy()
-        current_resource = self.min_resource
+        current_sample_size = self.min_sample_size
         iteration = 0
         
-        while len(active_configs) > self.min_configs and current_resource <= self.max_resource:
-            logger.info(f"SHA Iteration {iteration}: {len(active_configs)} configs with resource {current_resource}")
+        while len(active_configs) > self.min_configs and current_sample_size <= self.max_sample_size:
+            logger.info(f"SHA Iteration {iteration}: {len(active_configs)} configs with sample size {current_sample_size}")
             
-            # Evaluate all active configurations with the current resource level
+            # Evaluate all active configurations with the current sample size
             evaluations = []
             for config in active_configs:
-                eval_result = self.train_fn(config, current_resource)
+                eval_result = self.train_fn(config, current_sample_size)
                 evaluations.append(eval_result)
                 self.results.append(eval_result)
             
@@ -100,14 +100,14 @@ class SuccessiveHalving:
             n_keep = max(self.min_configs, len(active_configs) // self.reduction_factor)
             active_configs = [eval_result.config for eval_result in evaluations[:n_keep]]
             
-            # Increase the resource for the next iteration
-            current_resource *= self.reduction_factor
+            # Increase the sample size for the next iteration
+            current_sample_size *= self.reduction_factor
             iteration += 1
         
-        # Final evaluation with max resources for the remaining configs
+        # Final evaluation with max sample size for the remaining configs
         final_evaluations = []
         for config in active_configs:
-            eval_result = self.train_fn(config, self.max_resource)
+            eval_result = self.train_fn(config, self.max_sample_size)
             final_evaluations.append(eval_result)
             self.results.append(eval_result)
         
@@ -128,8 +128,8 @@ class Hyperband:
         self,
         config_sampler: Callable[[int], List[Dict[str, Any]]],
         train_fn: Callable,
-        min_resource: int = 1,
-        max_resource: int = 81,
+        min_sample_size: int = 1,
+        max_sample_size: int = 81,
         reduction_factor: int = 3
     ):
         """
@@ -137,21 +137,21 @@ class Hyperband:
         
         Args:
             config_sampler: Function that samples n configurations
-            train_fn: Function that trains a model with given config and resources
-            min_resource: Minimum resource (epochs/data fraction) to allocate
-            max_resource: Maximum resource to allocate
-            reduction_factor: Factor by which to reduce configs and increase resources
+            train_fn: Function that trains a model with given config and sample size
+            min_sample_size: Minimum sample size (epochs/data fraction) to allocate
+            max_sample_size: Maximum sample size to allocate
+            reduction_factor: Factor by which to reduce configs and increase sample size
         """
         self.config_sampler = config_sampler
         self.train_fn = train_fn
-        self.min_resource = min_resource
-        self.max_resource = max_resource
+        self.min_sample_size = min_sample_size
+        self.max_sample_size = max_sample_size
         self.reduction_factor = reduction_factor
         self.results = []
         
         # Calculate the number of brackets
-        self.s_max = int(np.log(max_resource / min_resource) / np.log(reduction_factor))
-        self.B = (self.s_max + 1) * max_resource
+        self.s_max = int(np.log(max_sample_size / min_sample_size) / np.log(reduction_factor))
+        self.B = (self.s_max + 1) * max_sample_size
         
     def run(self) -> List[ConfigEvaluation]:
         """
@@ -162,12 +162,12 @@ class Hyperband:
         """
         for s in reversed(range(self.s_max + 1)):
             # Number of configurations
-            n = int(self.B / self.max_resource * self.reduction_factor**(s) / (s + 1))
+            n = int(self.B / self.max_sample_size * self.reduction_factor**(s) / (s + 1))
             
-            # Initial resource per configuration
-            r = self.max_resource * self.reduction_factor**(-s)
+            # Initial sample size per configuration
+            r = self.max_sample_size * self.reduction_factor**(-s)
             
-            logger.info(f"Hyperband bracket s={s}: n={n}, r={r}")
+            logger.info(f"Hyperband bracket s={s}: n={n}, sample_size={r}")
             
             # Sample n configurations
             configs = self.config_sampler(n)
@@ -176,8 +176,8 @@ class Hyperband:
             sha = SuccessiveHalving(
                 configs=configs,
                 train_fn=self.train_fn,
-                min_resource=r,
-                max_resource=self.max_resource,
+                min_sample_size=r,
+                max_sample_size=self.max_sample_size,
                 reduction_factor=self.reduction_factor
             )
             bracket_results = sha.run()
@@ -191,8 +191,8 @@ class Hyperband:
 def learning_curve_extrapolation(
     config: Dict[str, Any],
     train_fn: Callable,
-    resources: List[int],
-    target_resource: int,
+    sample_sizes: List[int],
+    target_sample_size: int,
     fit_fn: Optional[Callable] = None
 ) -> Tuple[float, float]:
     """
@@ -200,9 +200,9 @@ def learning_curve_extrapolation(
     
     Args:
         config: Hyperparameter configuration
-        train_fn: Function to train model with given resources
-        resources: List of resource levels to use for extrapolation
-        target_resource: Target resource level to predict for
+        train_fn: Function to train model with given sample size
+        sample_sizes: List of sample sizes to use for extrapolation
+        target_sample_size: Target sample size to predict for
         fit_fn: Function to fit learning curve (defaults to power law)
         
     Returns:
@@ -214,10 +214,10 @@ def learning_curve_extrapolation(
             return a * np.power(x, b) + c
         fit_fn = power_law
     
-    # Train at each resource level
+    # Train at each sample size
     evaluations = []
-    for r in resources:
-        eval_result = train_fn(config, r)
+    for size in sample_sizes:
+        eval_result = train_fn(config, size)
         evaluations.append(eval_result)
     
     # Extract data for curve fitting
@@ -231,11 +231,11 @@ def learning_curve_extrapolation(
     try:
         # Fit loss curve
         params_loss, _ = curve_fit(fit_fn, x, y_loss)
-        predicted_loss = fit_fn(target_resource, *params_loss)
+        predicted_loss = fit_fn(target_sample_size, *params_loss)
         
         # Fit metric curve
         params_metric, _ = curve_fit(fit_fn, x, y_metric)
-        predicted_metric = fit_fn(target_resource, *params_metric)
+        predicted_metric = fit_fn(target_sample_size, *params_metric)
         
         return predicted_loss, predicted_metric
     

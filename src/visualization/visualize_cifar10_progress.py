@@ -289,44 +289,47 @@ def generate_progress_report(training_data, log_text, output_path, model_path=No
         <meta name="dataset" content="CIFAR-10">
         <style>
             body {{
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
                 margin: 0;
                 padding: 20px;
-                color: #333;
+                color: #eee;
                 max-width: 1200px;
                 margin: 0 auto;
-                background-color: #f9f9f9;
+                background-color: #111;
             }}
             h1, h2, h3 {{
-                color: #2c3e50;
+                color: #4cf;
             }}
             .header {{
-                background-color: #3498db;
-                color: white;
+                background-color: #1a2a3a;
+                color: #eee;
                 padding: 20px;
                 border-radius: 5px;
                 margin-bottom: 20px;
                 text-align: center;
+                border: 1px solid #444;
             }}
             .summary-box {{
-                background-color: white;
+                background-color: #222;
                 border-radius: 5px;
                 padding: 20px;
                 margin-bottom: 20px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                border: 1px solid #444;
             }}
             .progress-container {{
                 margin: 20px 0;
             }}
             .progress-bar {{
                 height: 30px;
-                background-color: #ecf0f1;
+                background-color: #2a2a2a;
                 border-radius: 5px;
                 overflow: hidden;
+                border: 1px solid #444;
             }}
             .progress-fill {{
                 height: 100%;
-                background-color: #2ecc71;
+                background-color: #3498db;
                 width: {progress_percentage}%;
                 text-align: center;
                 line-height: 30px;
@@ -334,15 +337,18 @@ def generate_progress_report(training_data, log_text, output_path, model_path=No
                 transition: width 0.5s ease-in-out;
             }}
             .plot-container {{
-                background-color: white;
+                background-color: #222;
                 border-radius: 5px;
                 padding: 20px;
                 margin-bottom: 20px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                border: 1px solid #444;
             }}
             .plot {{
                 width: 100%;
                 height: auto;
+                background-color: #fff;
+                border-radius: 4px;
             }}
             .stats-grid {{
                 display: grid;
@@ -351,25 +357,26 @@ def generate_progress_report(training_data, log_text, output_path, model_path=No
                 margin-bottom: 20px;
             }}
             .stat-card {{
-                background-color: white;
+                background-color: #222;
                 border-radius: 5px;
                 padding: 15px;
                 text-align: center;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                border: 1px solid #444;
             }}
             .stat-value {{
                 font-size: 24px;
                 font-weight: bold;
-                color: #3498db;
+                color: #4cf;
                 margin: 10px 0;
             }}
             .stat-label {{
                 font-size: 14px;
-                color: #7f8c8d;
+                color: #aaa;
             }}
             .subtitle {{
                 font-size: 16px;
-                color: #7f8c8d;
+                color: #aaa;
                 margin-top: -10px;
                 margin-bottom: 20px;
                 text-align: center;
@@ -377,7 +384,7 @@ def generate_progress_report(training_data, log_text, output_path, model_path=No
             .metadata {{
                 margin-top: 30px;
                 font-size: 0.9em;
-                color: #7f8c8d;
+                color: #aaa;
                 text-align: center;
             }}
             table {{
@@ -388,13 +395,14 @@ def generate_progress_report(training_data, log_text, output_path, model_path=No
             th, td {{
                 padding: 12px;
                 text-align: left;
-                border-bottom: 1px solid #ddd;
+                border-bottom: 1px solid #444;
             }}
             th {{
-                background-color: #f2f2f2;
+                background-color: #1a2a3a;
+                color: #eee;
             }}
             tr:hover {{
-                background-color: #f5f5f5;
+                background-color: #2a2a2a;
             }}
         </style>
     </head>

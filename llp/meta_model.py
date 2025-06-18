@@ -117,7 +117,7 @@ class TrainingResultFeatureExtractor:
             # Sharpness measures
             'sharpness', 'perturbation_robustness',
             # Resource usage
-            'resource_level', 'epochs'
+            'sample_size', 'epochs'
         ]
     
     def extract_features(self, training_history: List[Dict[str, Any]], sharpness: float) -> Dict[str, float]:
@@ -164,7 +164,7 @@ class TrainingResultFeatureExtractor:
         features['perturbation_robustness'] = 1.0 / (sharpness + 1e-10)
         
         # Resource usage
-        features['resource_level'] = training_history[0].get('resource_level', 0.0) if training_history else 0.0
+        features['sample_size'] = training_history[0].get('sample_size', 0.0) if training_history else 0.0
         features['epochs'] = len(training_history)
         
         return features
@@ -196,6 +196,9 @@ class HyperparameterPredictor:
         self.feature_scaler = StandardScaler()
         self.label_encoders = {}  # For categorical hyperparameters
         self.hyperparameter_types = {}  # Maps hyperparameter name to type
+        self.scalers = {}  # Feature scalers for each hyperparameter
+        self.hyperparameter_ranges = {}  # Ranges for numerical hyperparameters
+        self.categorical_values = {}  # Sets of values for categorical hyperparameters
         
         # Feature names
         self.dataset_feature_names = [
@@ -215,7 +218,7 @@ class HyperparameterPredictor:
             # Sharpness measures
             'sharpness', 'perturbation_robustness',
             # Resource usage
-            'resource_level', 'epochs'
+            'sample_size', 'epochs'
         ]
         self.feature_names = self.dataset_feature_names + self.training_feature_names  # Combined feature names for importance analysis
         
@@ -291,6 +294,66 @@ class HyperparameterPredictor:
                     self.hyperparameter_ranges[name][1] = max(self.hyperparameter_ranges[name][1], value)
                 elif isinstance(value, str):
                     if name in self.categorical_values:
+                        self.categorical_values[name].add(value)
+                    else:
+                        self.categorical_values[name] = {value}
+    
+    def train(self):
+        """Train the meta-model on all collected examples."""
+        if not self.X or not self.y:
+            logger.warning("No training examples available for meta-model")
+            return
+        
+        logger.info(f"Training meta-model on {len(self.X)} examples")
+        
+        # Convert to numpy arrays
+        X = np.array(self.X)
+        y = np.array(self.y)
+        
+        # Fit the feature scaler
+        self.feature_scaler.fit(X)
+        X_scaled = self.feature_scaler.transform(X)
+        
+        # Ensure feature names are populated for feature importance analysis
+        if not self.feature_names and self.dataset_feature_names and self.training_feature_names:
+            self.feature_names = self.dataset_feature_names + self.training_feature_names
+            logger.debug(f"Feature names for importance analysis: {self.feature_names}")
+        
+        # Train a model for each hyperparameter
+        for hyperparam in self.hyperparameters:
+            logger.info(f"Training model for hyperparameter: {hyperparam}")
+            
+            # Get the values for this hyperparameter
+            values = [config.get(hyperparam) for config in self.configs]
+            
+            # Skip if all values are None
+            if all(v is None for v in values):
+                logger.warning(f"All values for {hyperparam} are None, skipping")
+                continue
+            
+            # Determine the type of hyperparameter
+            if isinstance(values[0], (int, float)):
+                # For numerical hyperparameters, use regression
+                model = RandomForestRegressor(n_estimators=100, random_state=42)
+                model.fit(X_scaled, values)
+                self.models[hyperparam] = model
+                
+                # Store the type for later use
+                self.hyperparameter_types[hyperparam] = type(values[0])
+            else:
+                # For categorical hyperparameters, use classification
+                # First encode the values
+                label_encoder = LabelEncoder()
+                encoded_values = label_encoder.fit_transform([str(v) for v in values])
+                
+                model = RandomForestClassifier(n_estimators=100, random_state=42)
+                model.fit(X_scaled, encoded_values)
+                
+                self.models[hyperparam] = model
+                self.label_encoders[hyperparam] = label_encoder
+        
+        # Save the trained models
+        self.save()
         
         # Save label encoders
         for hyperparam, encoder in self.label_encoders.items():

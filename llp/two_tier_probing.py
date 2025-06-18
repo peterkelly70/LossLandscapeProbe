@@ -75,17 +75,17 @@ class TwoTierProbing:
     def train_and_evaluate(
         self,
         config: Dict[str, Any],
-        resource: Union[int, float],
+        sample_size: Union[int, float],
         measure_flatness: bool = True,
         noise_std: float = 0.01,
         num_perturbations: int = 5
     ) -> TwoTierEvaluation:
         """
-        Train a model with the given config and resource level, and evaluate it.
+        Train a model with the given config and sample size, and evaluate it.
         
         Args:
             config: Hyperparameter configuration
-            resource: Resource level (epochs or data fraction)
+            sample_size: Sample size (epochs or data fraction)
             measure_flatness: Whether to measure loss landscape flatness
             noise_std: Standard deviation for weight perturbations
             num_perturbations: Number of perturbation samples
@@ -93,15 +93,15 @@ class TwoTierProbing:
         Returns:
             Evaluation results
         """
-        # Determine if resource is epochs or data fraction
-        if resource <= 1.0:
-            # Resource is data fraction
-            data_fraction = resource
+        # Determine if sample_size is epochs or data fraction
+        if sample_size <= 1.0:
+            # Sample_size is data fraction
+            data_fraction = sample_size
             epochs = self.max_epochs
         else:
-            # Resource is epochs
+            # Sample_size is epochs
             data_fraction = 1.0
-            epochs = min(int(resource), self.max_epochs)
+            epochs = min(int(sample_size), self.max_epochs)
         
         # Get data loaders
         train_loader, val_loader = self.dataset_fn(data_fraction)
@@ -242,8 +242,8 @@ class TwoTierProbing:
     
     def run_successive_halving(
         self,
-        min_resource: int = 1,
-        max_resource: int = 81,
+        min_sample_size: int = 1,
+        max_sample_size: int = 81,
         reduction_factor: int = 3,
         measure_flatness: bool = True,
         progress_callback: Callable[[int, int, float], None] = None
@@ -252,8 +252,8 @@ class TwoTierProbing:
         Run Successive Halving with two-tier evaluation.
         
         Args:
-            min_resource: Minimum resource to allocate
-            max_resource: Maximum resource to allocate
+            min_sample_size: Minimum sample size to allocate
+            max_sample_size: Maximum sample size to allocate
             reduction_factor: Factor by which to reduce configs and increase resources
             measure_flatness: Whether to measure loss landscape flatness
             progress_callback: Optional callback function for reporting progress
@@ -262,8 +262,8 @@ class TwoTierProbing:
         Returns:
             List of evaluation results
         """
-        def train_fn(config, resource):
-            return self.train_and_evaluate(config, resource, measure_flatness)
+        def train_fn(config, sample_size):
+            return self.train_and_evaluate(config, sample_size, measure_flatness)
         
         # Create a wrapper for the SHA run method to track progress
         class ProgressTrackingSHA(SuccessiveHalving):
@@ -274,19 +274,19 @@ class TwoTierProbing:
             def run(self):
                 configs = self.configs.copy()
                 stage = 0
-                resource = self.min_resource
+                sample_size = self.min_sample_size
                 
                 while len(configs) > 1:
                     # Call progress callback at the start of each stage
                     if self.progress_callback:
-                        self.progress_callback(stage, len(configs), resource)
+                        self.progress_callback(stage, len(configs), sample_size)
                         
                     # Run the stage as normal
-                    logger.info(f"Stage {stage}: Running {len(configs)} configs with resource {resource}")
+                    logger.info(f"Stage {stage}: Running {len(configs)} configs with sample size {sample_size}")
                     results = []
                     
                     for config in configs:
-                        result = self.train_fn(config, resource)
+                        result = self.train_fn(config, sample_size)
                         results.append(result)
                     
                     # Sort by validation metric (higher is better)
@@ -297,19 +297,19 @@ class TwoTierProbing:
                     results = results[:k]
                     configs = [r.config for r in results]
                     
-                    # Increase resource for next stage
-                    resource = min(resource * self.reduction_factor, self.max_resource)
+                    # Increase sample size for next stage
+                    sample_size = min(sample_size * self.reduction_factor, self.max_sample_size)
                     stage += 1
                 
-                # Final stage - evaluate the remaining config with max resource
+                # Final stage - evaluate the remaining config with max sample size
                 if self.progress_callback:
-                    self.progress_callback(stage, len(configs), resource)
+                    self.progress_callback(stage, len(configs), sample_size)
                     
-                logger.info(f"Final stage: Running {len(configs)} configs with resource {resource}")
+                logger.info(f"Final stage: Running {len(configs)} configs with sample size {sample_size}")
                 final_results = []
                 
                 for config in configs:
-                    result = self.train_fn(config, resource)
+                    result = self.train_fn(config, sample_size)
                     final_results.append(result)
                 
                 return final_results
@@ -318,8 +318,8 @@ class TwoTierProbing:
         sha = ProgressTrackingSHA(
             configs=self.configs,
             train_fn=train_fn,
-            min_resource=min_resource,
-            max_resource=max_resource,
+            min_sample_size=min_sample_size,
+            max_sample_size=max_sample_size,
             reduction_factor=reduction_factor,
             progress_callback=progress_callback
         )

@@ -293,41 +293,47 @@ def generate_progress_report(training_data, log_text, output_path, model_path=No
         <title>CIFAR-100 Training Progress Report</title>
         <style>
             body {{
-                font-family: Arial, sans-serif;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
                 line-height: 1.6;
-                color: #333;
+                color: #eee;
                 max-width: 1200px;
                 margin: 0 auto;
                 padding: 20px;
+                background-color: #111;
             }}
             h1, h2 {{
-                color: #2c3e50;
+                color: #4cf;
             }}
             .header {{
-                background-color: #3498db;
-                color: white;
+                background-color: #1a2a3a;
+                color: #eee;
                 padding: 20px;
                 text-align: center;
                 margin-bottom: 20px;
                 border-radius: 5px;
+                border: 1px solid #444;
             }}
             .plot-container {{
                 margin-bottom: 30px;
-                background-color: #f9f9f9;
+                background-color: #222;
                 padding: 20px;
                 border-radius: 5px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                border: 1px solid #444;
             }}
             .plot {{
                 max-width: 100%;
                 height: auto;
+                background-color: #fff;
+                border-radius: 4px;
             }}
             .summary-box {{
-                background-color: #f9f9f9;
+                background-color: #222;
                 padding: 20px;
                 margin-bottom: 30px;
                 border-radius: 5px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                border: 1px solid #444;
             }}
             table {{
                 width: 100%;
@@ -337,13 +343,33 @@ def generate_progress_report(training_data, log_text, output_path, model_path=No
             th, td {{
                 padding: 12px;
                 text-align: left;
-                border-bottom: 1px solid #ddd;
+                border-bottom: 1px solid #444;
             }}
             th {{
-                background-color: #f2f2f2;
+                background-color: #1a2a3a;
+                color: #eee;
             }}
             tr:hover {{
-                background-color: #f5f5f5;
+                background-color: #2a2a2a;
+            }}
+            .subtitle {{
+                color: #aaa;
+            }}
+            .progress-bar {{
+                height: 30px;
+                background-color: #2a2a2a;
+                border-radius: 5px;
+                overflow: hidden;
+                border: 1px solid #444;
+                margin-top: 10px;
+            }}
+            .progress-fill {{
+                height: 100%;
+                background-color: #3498db;
+                width: {progress_percentage}%;
+                text-align: center;
+                line-height: 30px;
+                color: white;
             }}
         </style>
     </head>

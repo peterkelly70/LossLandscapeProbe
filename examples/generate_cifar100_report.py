@@ -267,64 +267,85 @@ def generate_cifar100_transfer_report(cifar10_results, cifar100_results, output_
     <title>CIFAR-100 Transfer Learning Report</title>
     <style>
         body {{
-            font-family: Arial, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
-            color: #333;
+            color: #eee;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #111;
         }}
         h1, h2, h3, h4 {{
-            color: #2c3e50;
+            color: #4cf;
         }}
         .plot-container {{
             margin: 20px 0;
             text-align: center;
+            background-color: #222;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #444;
         }}
         .plot {{
             max-width: 100%;
             height: auto;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            background-color: #fff;
+            border-radius: 4px;
         }}
         .table-container {{
             margin: 30px 0;
             overflow-x: auto;
+            background-color: #222;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #444;
         }}
         .hyperparameter-table, .dataset-table {{
             width: 100%;
             border-collapse: collapse;
+            color: #eee;
         }}
         .hyperparameter-table th, .hyperparameter-table td,
         .dataset-table th, .dataset-table td {{
             padding: 12px;
             text-align: left;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #444;
         }}
         .hyperparameter-table th, .dataset-table th {{
-            background-color: #f2f2f2;
+            background-color: #1a2a3a;
+            color: #eee;
         }}
         .hyperparameter-table tr:hover, .dataset-table tr:hover {{
-            background-color: #f5f5f5;
+            background-color: #2a2a2a;
         }}
         .metadata {{
             margin-top: 30px;
             font-size: 0.9em;
-            color: #7f8c8d;
+            color: #aaa;
         }}
         .insights-container {{
             margin: 30px 0;
+            background-color: #222;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #444;
         }}
         .insight-box {{
-            background-color: #f8f9fa;
+            background-color: #1a2a3a;
             border-left: 4px solid #3498db;
             padding: 15px;
             margin-bottom: 20px;
         }}
         .summary-box {{
-            background-color: #e8f4f8;
+            background-color: #222;
             border-radius: 5px;
             padding: 15px;
             margin: 20px 0;
+            border: 1px solid #444;
+        }}
+        strong {{
+            color: #4cf;
         }}
     </style>
 </head>
@@ -371,8 +392,10 @@ def generate_cifar100_transfer_report(cifar10_results, cifar100_results, output_
     with open(output_path, 'w') as f:
         f.write(html_content)
     
-    # Also save a copy with a fixed name for the website
-    fixed_output_path = 'cifar100_transfer_report.html'
+    # Save a copy in the reports directory with a fixed name for the website
+    reports_dir = os.path.join('reports', 'cifa100_transfer')
+    os.makedirs(reports_dir, exist_ok=True)
+    fixed_output_path = os.path.join(reports_dir, 'latest_test_report.html')
     with open(fixed_output_path, 'w') as f:
         f.write(html_content)
     
@@ -381,7 +404,9 @@ def generate_cifar100_transfer_report(cifar10_results, cifar100_results, output_
 
 def main():
     parser = argparse.ArgumentParser(description='Generate CIFAR-100 transfer learning report')
-    parser.add_argument('--output', type=str, default='cifar100_transfer_report.html',
+    reports_dir = os.path.join('reports', 'cifa100_transfer')
+    os.makedirs(reports_dir, exist_ok=True)
+    parser.add_argument('--output', type=str, default=os.path.join(reports_dir, 'cifar100_transfer_report.html'),
                         help='Output HTML file path')
     args = parser.parse_args()
     
@@ -408,15 +433,23 @@ def main():
         <head>
             <title>CIFAR-100 Transfer Learning Report (Placeholder)</title>
             <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
-                h1 {{ color: #333; }}
+                body {{ 
+                    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
+                    margin: 40px; 
+                    line-height: 1.6; 
+                    background-color: #111; 
+                    color: #eee; 
+                }}
+                h1, h3 {{ color: #4cf; }}
                 .placeholder-box {{ 
-                    background-color: #f8f9fa; 
+                    background-color: #222; 
                     border-left: 4px solid #e74c3c; 
                     padding: 15px; 
                     margin: 20px 0; 
+                    border: 1px solid #444;
+                    border-radius: 5px;
                 }}
-                .metadata {{ margin-top: 30px; font-size: 0.9em; color: #7f8c8d; }}
+                .metadata {{ margin-top: 30px; font-size: 0.9em; color: #aaa; }}
             </style>
         </head>
         <body>
@@ -441,8 +474,10 @@ def main():
         with open(args.output, 'w') as f:
             f.write(placeholder_html)
         
-        # Also save a copy with a fixed name for the website
-        fixed_output_path = 'cifar100_transfer_report.html'
+        # Save a copy in the reports directory with a fixed name for the website
+        reports_dir = os.path.join('reports', 'cifa100_transfer')
+        os.makedirs(reports_dir, exist_ok=True)
+        fixed_output_path = os.path.join(reports_dir, 'latest_test_report.html')
         with open(fixed_output_path, 'w') as f:
             f.write(placeholder_html)
         

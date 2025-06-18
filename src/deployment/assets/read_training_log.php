@@ -34,19 +34,36 @@ if (!in_array($log_type, $allowed_types)) {
 
 // Determine log file path
 $log_file = '';
+$meta_model_log = false;
 if ($log_type === 'training') {
     if ($model === 'cifa10') {
         $log_file = 'cifar10_training.log';
     } elseif ($model === 'cifa100') {
         $log_file = 'cifar100_training.log';
     } elseif ($model === 'cifa100_transfer') {
-        $log_file = 'cifa100_transfer_cifar100_transfer.log';
+        $log_file = 'cifar100_transfer.log';
     } else {
-        // For resource level models, use the base model log
+        // For resource level models, use the base model log with resource level
         if (strpos($model, 'cifa10') === 0) {
-            $log_file = 'cifar10_training.log';
+            $base = 'cifar10';
+            $resource_level = substr($model, 6); // Extract the resource level (e.g., 10, 20)
+            $log_file = $base . '_training_' . $resource_level . 'pct.log';
+            
+            // Also check for meta-model logs
+            if (isset($_GET['meta_model']) && $_GET['meta_model'] === 'true') {
+                $log_file = $base . '_meta_model_' . $resource_level . 'pct.log';
+                $meta_model_log = true;
+            }
         } else {
-            $log_file = 'cifar100_training.log';
+            $base = 'cifar100';
+            $resource_level = substr($model, 7); // Extract the resource level (e.g., 10, 20)
+            $log_file = $base . '_training_' . $resource_level . 'pct.log';
+            
+            // Also check for meta-model logs
+            if (isset($_GET['meta_model']) && $_GET['meta_model'] === 'true') {
+                $log_file = $base . '_meta_model_' . $resource_level . 'pct.log';
+                $meta_model_log = true;
+            }
         }
     }
 } else {
@@ -58,35 +75,56 @@ if ($log_type === 'training') {
     }
 }
 
-// Check if model-specific log exists first
-$logs_dir = '../../../reports';  // Look in the reports directory structure
+// Define possible locations for log files
+$project_root = realpath(__DIR__ . '/../../..');
+$logs_dir = $project_root . '/logs';
+$reports_dir = $project_root . '/reports';
 
-// For model-specific directory structure (e.g., reports/cifa10_10/cifa10_10_training_log.txt)
-$model_log_path = $logs_dir . '/' . $model . '/' . $model . '_training_log.txt';
+// Paths to check for log files
+$paths_to_check = array();
 
-// For generic log files in the base dataset directory (e.g., reports/cifa10/cifa10_training_log.txt)
-$base_model = strpos($model, '_') !== false ? substr($model, 0, strpos($model, '_')) : $model;
-$generic_log_path = $logs_dir . '/' . $base_model . '/' . $base_model . '_training_log.txt';
+// For meta-model logs, check in logs directory first, then in reports
+if ($meta_model_log) {
+    $paths_to_check[] = $logs_dir . '/' . $log_file;
+    $paths_to_check[] = $reports_dir . '/' . $model . '/' . $log_file;
+} else {
+    // For regular training logs
+    // Check model-specific training log in reports directory
+    $paths_to_check[] = $reports_dir . '/' . $model . '/' . $model . '_training_log.txt';
+    
+    // Check unified training log in reports directory
+    $paths_to_check[] = $reports_dir . '/' . $model . '/' . $log_file;
+    
+    // Check in logs directory
+    $paths_to_check[] = $logs_dir . '/' . $log_file;
+    
+    // For generic log files in the base dataset directory
+    $base_model = strpos($model, '_') !== false ? substr($model, 0, strpos($model, '_')) : $model;
+    $paths_to_check[] = $reports_dir . '/' . $base_model . '/' . $base_model . '_training_log.txt';
+}
 
 // Set content type to JSON
 header('Content-Type: application/json');
 
-// Try to read model-specific log first, fall back to generic log
-if (file_exists($model_log_path)) {
-    $log_content = file_get_contents($model_log_path);
+// Try each path until we find a log file
+$log_content = '';
+$found_path = '';
+
+foreach ($paths_to_check as $path) {
+    if (file_exists($path)) {
+        $log_content = file_get_contents($path);
+        $found_path = $path;
+        break;
+    }
+}
+
+if (!empty($log_content)) {
     echo json_encode(array(
         'model' => $model,
         'type' => $log_type,
         'content' => $log_content,
-        'source' => 'model_specific'
-    ));
-} elseif (file_exists($generic_log_path)) {
-    $log_content = file_get_contents($generic_log_path);
-    echo json_encode(array(
-        'model' => $model,
-        'type' => $log_type,
-        'content' => $log_content,
-        'source' => 'generic'
+        'source' => $found_path,
+        'meta_model' => $meta_model_log
     ));
 } else {
     echo json_encode(array(
@@ -94,7 +132,8 @@ if (file_exists($model_log_path)) {
         'type' => $log_type,
         'content' => '',
         'error' => 'Log file not found',
-        'paths_checked' => array($model_log_path, $generic_log_path)
+        'paths_checked' => $paths_to_check,
+        'meta_model' => $meta_model_log
     ));
 }
 ?>

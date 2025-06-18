@@ -175,7 +175,7 @@ class MetaProbing(TwoTierProbing):
                 'train_loss': avg_loss,
                 'val_loss': val_loss,
                 'val_accuracy': val_accuracy,
-                'resource_level': data_fraction,
+                'sample_size': data_fraction,
                 'elapsed_time': time.time() - epoch_start
             })
             

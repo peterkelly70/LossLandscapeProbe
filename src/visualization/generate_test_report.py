@@ -20,20 +20,55 @@ def get_cifar10_classes():
 
 def load_model(model_path):
     """Load the trained model."""
-    # Create the model with default architecture
-    model = SimpleCNN(num_channels=32)  # Default from meta_config
-    
     try:
-        # Load the state dict directly
+        # Load the state dict directly to examine it
         state_dict = torch.load(model_path)
-        model.load_state_dict(state_dict)
-        print(f"Successfully loaded model from {model_path}")
+        
+        # Check if this is a complete model or just a state dict
+        if isinstance(state_dict, dict) and 'state_dict' in state_dict:
+            # This is a complete model checkpoint with additional metadata
+            print(f"Loading state_dict from checkpoint in {model_path}")
+            state_dict = state_dict['state_dict']
+        
+        # Determine if this is a meta-model or a trained model based on filename
+        is_meta_model = 'meta_model' in os.path.basename(model_path).lower()
+        
+        # Try to determine the model architecture from the state dict
+        # Look for conv1.weight to determine the number of channels
+        if 'conv1.weight' in state_dict:
+            # Get the shape of the first conv layer
+            conv1_shape = state_dict['conv1.weight'].shape
+            # The first dimension is the number of output channels
+            num_channels = conv1_shape[0]
+            print(f"Detected model with {num_channels} channels in first layer")
+        else:
+            # Default if we can't determine
+            num_channels = 32 if not is_meta_model else 64
+            print(f"Using {'meta-model' if is_meta_model else 'trained model'} architecture with {num_channels} channels")
+        
+        # Create the model with the detected architecture
+        model = SimpleCNN(num_channels=num_channels)
+        
+        # Try to load with strict=True first
+        try:
+            model.load_state_dict(state_dict, strict=True)
+            print(f"Successfully loaded {'meta-model' if is_meta_model else 'trained model'} from {model_path} with exact architecture match")
+        except Exception as strict_error:
+            print(f"Warning: Strict loading failed: {strict_error}")
+            print("Attempting to load with strict=False to handle architecture differences")
+            model.load_state_dict(state_dict, strict=False)
+            print(f"Successfully loaded {'meta-model' if is_meta_model else 'trained model'} from {model_path} with partial architecture match")
+        
         return model, True
     except FileNotFoundError:
         print(f"Warning: Model file {model_path} not found. Using untrained model.")
+        # Create default model
+        model = SimpleCNN(num_channels=32)
         return model, False
     except Exception as e:
         print(f"Error loading model: {e}")
+        # Create default model
+        model = SimpleCNN(num_channels=32)
         return model, False
 
 def get_test_loader():
@@ -95,19 +130,22 @@ def generate_html_report(model, test_loader, output_path, max_samples=100):
         <title>CIFAR-10 Test Results</title>
         <style>
             body {
-                font-family: Arial, sans-serif;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
                 margin: 20px;
                 max-width: 1200px;
                 margin: 0 auto;
+                background: #111;
+                color: #eee;
             }
             h1, h2 {
-                color: #333;
+                color: #4cf;
             }
             .stats {
-                background-color: #f5f5f5;
+                background-color: #222;
                 padding: 15px;
                 border-radius: 5px;
                 margin-bottom: 20px;
+                border: 1px solid #444;
             }
             .image-grid {
                 display: grid;
@@ -115,37 +153,39 @@ def generate_html_report(model, test_loader, output_path, max_samples=100):
                 gap: 15px;
             }
             .image-card {
-                border: 1px solid #ddd;
+                border: 1px solid #444;
                 border-radius: 5px;
                 padding: 10px;
                 text-align: center;
+                background-color: #222;
             }
             .image-card img {
                 width: 100%;
                 height: auto;
+                border: 1px solid #333;
             }
             .correct {
-                color: green;
+                color: #4f8;
                 font-weight: bold;
             }
             .incorrect {
-                color: red;
+                color: #f88;
                 font-weight: bold;
             }
             .confidence {
                 font-size: 0.8em;
-                color: #666;
+                color: #aaa;
             }
             .sample-notice {
-                background-color: #f0f8ff;
-                border-left: 4px solid #1e90ff;
+                background-color: #1a2a3a;
+                border-left: 4px solid #3498db;
                 padding: 10px 15px;
                 margin-bottom: 20px;
                 border-radius: 3px;
             }
             .sample-notice p {
                 margin: 0;
-                color: #333;
+                color: #eee;
             }
         </style>
     </head>
@@ -162,8 +202,8 @@ def generate_html_report(model, test_loader, output_path, max_samples=100):
     
     # Add the accuracy notice directly after the heading
     accuracy_notice = '''
-    <div style="background-color: #f8f9fa; border-left: 4px solid #007bff; padding: 10px; margin-bottom: 20px;">
-        <p><strong>Note:</strong> Accuracy is based on the full test set of 10,000 samples. Only a subset of images is shown here.</p>
+    <div style="background-color: #1a2a3a; border-left: 4px solid #3498db; padding: 10px; margin-bottom: 20px;">
+        <p style="color: #eee;"><strong>Note:</strong> Accuracy is based on the full test set of 10,000 samples. Only a subset of images is shown here.</p>
     </div>
     '''
     html_content += accuracy_notice
@@ -265,10 +305,30 @@ def generate_placeholder_report(output_path):
     <head>
         <title>CIFAR-10 Test Report (Placeholder)</title>
         <style>
-            body {{ font-family: Arial, sans-serif; margin: 20px; }}
-            h1, h2 {{ color: #333; }}
-            .placeholder {{ background-color: #f8f9fa; padding: 20px; border-radius: 5px; text-align: center; }}
-            .note {{ color: #721c24; background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-top: 20px; }}
+            body {{ 
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
+                margin: 20px; 
+                background: #111; 
+                color: #eee; 
+                max-width: 1200px;
+                margin: 0 auto;
+            }}
+            h1, h2 {{ color: #4cf; }}
+            .placeholder {{ 
+                background-color: #222; 
+                padding: 20px; 
+                border-radius: 5px; 
+                text-align: center; 
+                border: 1px solid #444;
+            }}
+            .note {{ 
+                color: #f88; 
+                background-color: #2a1a1a; 
+                padding: 10px; 
+                border-radius: 5px; 
+                margin-top: 20px; 
+                border-left: 4px solid #f88;
+            }}
         </style>
     </head>
     <body>
@@ -307,23 +367,64 @@ if __name__ == "__main__":
                         help='Model type to determine the output directory')
     args = parser.parse_args()
     
-    # Path to the saved model – checkpoints live under trained/
-    model_path = args.model or os.path.join("trained", "meta_model_trained.pth")
+    # Determine model path based on model type
+    model_type = args.model_type
     
-    # Check for alternative model paths if no model is specified
-    if args.model is None:
-        alt_paths = [
-            os.path.join("models", "cifar10_model.pth"),
-            os.path.join("models", "meta_model_trained.pth"),
-            os.path.join("checkpoints", "cifar10_model.pth")
-        ]
+    # Path to the saved model - use model-specific directories with consistent naming
+    if args.model:
+        model_path = args.model
+    else:
+        # Extract dataset number (10 or 100) from model_type
+        dataset_num = model_type[-2:] if 'cifa' in model_type else '10'
+        
+        # Determine if we're looking for a meta-model or a trained model
+        is_meta_model = 'meta' in model_type.lower()
+        
+        # Check for model in the model-specific directory
+        # For trained models (not meta-models), prioritize trained models over meta-models
+        if not is_meta_model:
+            model_paths = [
+                # Standard naming convention for trained models
+                os.path.join("trained", model_type, f"cifa{dataset_num}_model.pth"),
+                os.path.join("trained", model_type, f"cifa{dataset_num}_trained.pth"),
+                
+                # Multisamplesize trained models
+                os.path.join("trained", model_type, f"cifa{dataset_num}_multisamplesize_trained.pth"),
+                os.path.join("trained", model_type, f"cifa{dataset_num}_multisamplesize_model.pth"),
+                
+                # Best models (especially for transfer learning)
+                os.path.join("trained", model_type, f"cifa{dataset_num}_best_model.pth"),
+                
+                # Latest models in reports directory
+                os.path.join("reports", model_type, f"latest_model.pth"),
+                os.path.join("reports", model_type, f"cifa{dataset_num}_latest_model.pth"),
+                
+                # Legacy paths for backward compatibility
+                os.path.join("models", f"cifar{dataset_num}_model.pth"),
+                os.path.join("checkpoints", f"cifar{dataset_num}_model.pth")
+            ]
+        else:
+            # Meta-models have a different architecture, so we prioritize them
+            model_paths = [
+                # Meta models
+                os.path.join("trained", model_type, f"cifa{dataset_num}_meta_model.pth"),
+                os.path.join("trained", "meta_model_trained.pth"),
+                os.path.join("models", "meta_model_trained.pth"),
+            ]
         
         # Try to find a model file
-        for alt_path in alt_paths:
-            if os.path.exists(alt_path):
-                model_path = alt_path
-                print(f"Found model at alternative path: {model_path}")
+        model_path = None
+        for path in model_paths:
+            if os.path.exists(path):
+                model_path = path
+                print(f"Found model at path: {model_path}")
                 break
+        
+        # If no model found, default to the first path (which will fail gracefully)
+        if model_path is None:
+            model_path = model_paths[0]
+            print(f"No model found, will try: {model_path}")
+
     
     # Output path for the HTML report
     model_type = args.model_type
@@ -343,12 +444,30 @@ if __name__ == "__main__":
     print("Loading model...")
     model, model_loaded = load_model(model_path)
     
+    # Always load test data
+    print("Loading test data...")
+    test_loader = get_test_loader()
+    
     if model_loaded:
-        print("Loading test data...")
-        test_loader = get_test_loader()
-        
-        print("Generating report...")
+        print("Generating report with test images and predictions...")
+        # Set eval mode explicitly
+        model.eval()
+        # Generate the report with sample test images
         generate_html_report(model, test_loader, output_path, max_samples=200)
+        print(f"Report generated at: {output_path}")
+        
+        # Evaluate on full test set to get overall accuracy
+        correct = 0
+        total = 0
+        with torch.no_grad():
+            for images, labels in test_loader:
+                outputs = model(images)
+                _, predicted = torch.max(outputs, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+        
+        accuracy = 100 * correct / total
+        print(f"Overall accuracy: {accuracy:.2f}%")
         print("CIFAR-10 test report generated successfully.")
     else:
         print("Generating placeholder report...")

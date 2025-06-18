@@ -11,6 +11,7 @@ import re
 import subprocess
 from pathlib import Path
 from setup_model_directories import setup_model_directories
+import argparse
 
 def copy_file(src, dest, create_dest_dir=True):
     """Copy a file and create destination directory if needed."""
@@ -160,26 +161,46 @@ echo json_encode($reportFiles);
         return False
 
 def copy_markdown_files(project_dir, web_dir):
-    """Copy the README.md and whitepaper.md files to the web server directory."""
+    """Copy markdown documentation files to the web directory."""
+    # Check for doc directory first, fall back to project root
+    docs_dir = os.path.join(project_dir, 'doc')
+    if not os.path.exists(docs_dir):
+        print("Documentation directory not found at {}, falling back to project root".format(docs_dir))
+        docs_dir = project_dir
+    
     # Copy README.md
-    readme_path = os.path.join(project_dir, 'README.md')
+    readme_path = os.path.join(docs_dir, 'README.md')
     readme_target_path = os.path.join(web_dir, 'README.md')
     
-    # Copy whitepaper.md
-    whitepaper_path = os.path.join(project_dir, 'whitepaper.md')
-    whitepaper_target_path = os.path.join(web_dir, 'whitepaper.md')
+    # Copy LossLandscapeProbe_WhitePaper.md (renamed from whitepaper.md)
+    whitepaper_path = os.path.join(docs_dir, 'LossLandscapeProbe_WhitePaper.md')
+    whitepaper_target_path = os.path.join(web_dir, 'whitepaper.md')  # Keep the web filename as whitepaper.md for compatibility
+    
+    # Copy LICENSE
+    license_path = os.path.join(project_dir, 'LICENSE')
+    license_target_path = os.path.join(web_dir, 'LICENSE')
     
     try:
+        # Check if docs directory exists
+        if not os.path.exists(docs_dir):
+            print(f"Documentation directory not found at {docs_dir}, falling back to project root")
+            # Fall back to project root for backward compatibility
+            readme_path = os.path.join(project_dir, 'README.md')
+            whitepaper_path = os.path.join(project_dir, 'whitepaper.md')
+        
         # Read and write README.md
-        with open(readme_path, 'r') as f:
-            readme_content = f.read()
+        if os.path.exists(readme_path):
+            with open(readme_path, 'r') as f:
+                readme_content = f.read()
+            
+            with open(readme_target_path, 'w') as f:
+                f.write(readme_content)
+            
+            print(f"Copied README.md to {readme_target_path}")
+        else:
+            print(f"README.md not found at {readme_path}, skipping")
         
-        with open(readme_target_path, 'w') as f:
-            f.write(readme_content)
-        
-        print(f"Copied README.md to {readme_target_path}")
-        
-        # Read and write whitepaper.md if it exists
+        # Read and write whitepaper
         if os.path.exists(whitepaper_path):
             with open(whitepaper_path, 'r') as f:
                 whitepaper_content = f.read()
@@ -187,12 +208,121 @@ def copy_markdown_files(project_dir, web_dir):
             with open(whitepaper_target_path, 'w') as f:
                 f.write(whitepaper_content)
             
-            print(f"Copied whitepaper.md to {whitepaper_target_path}")
+            print(f"Copied LossLandscapeProbe_WhitePaper.md to {whitepaper_target_path}")
         else:
-            print("whitepaper.md not found, skipping")
+            print(f"Whitepaper not found at {whitepaper_path}, skipping")
+        
+        # Read and write LICENSE
+        if os.path.exists(license_path):
+            with open(license_path, 'r') as f:
+                license_content = f.read()
+            
+            with open(license_target_path, 'w') as f:
+                f.write(license_content)
+            
+            print(f"Copied LICENSE to {license_target_path}")
+        else:
+            print("LICENSE not found, skipping")
     except Exception as e:
         print(f"Error copying markdown files: {e}")
         return False
+    
+    return True
+
+def copy_log_files(project_dir, web_dir):
+    """Copy log files from report directories to the web directory."""
+    # Get all model-specific directories in the project reports directory
+    project_reports_dir = os.path.join(project_dir, 'reports')
+    web_reports_dir = os.path.join(web_dir, 'reports')
+    
+    if not os.path.exists(project_reports_dir):
+        print("Project reports directory not found, skipping log file copying")
+        return False
+    
+    # Create the web reports directory if it doesn't exist
+    os.makedirs(web_reports_dir, exist_ok=True)
+    
+    # Get all model-specific directories
+    model_dirs = [d for d in os.listdir(project_reports_dir) if os.path.isdir(os.path.join(project_reports_dir, d))]
+    
+    log_files_copied = 0
+    
+    # For each model directory, copy all log files to the corresponding web directory
+    for model_dir in model_dirs:
+        project_model_dir = os.path.join(project_reports_dir, model_dir)
+        web_model_dir = os.path.join(web_reports_dir, model_dir)
+        
+        # Create the web model directory if it doesn't exist
+        os.makedirs(web_model_dir, exist_ok=True)
+        
+        # Find all log files in the project model directory
+        log_files = [f for f in os.listdir(project_model_dir) if f.endswith('.log')]
+        
+        # Copy each log file to the web model directory
+        for log_file in log_files:
+            src_path = os.path.join(project_model_dir, log_file)
+            dest_path = os.path.join(web_model_dir, log_file)
+            
+            try:
+                copy_file(src_path, dest_path)
+                log_files_copied += 1
+            except Exception as e:
+                print(f"Error copying log file {log_file}: {e}")
+    
+    if log_files_copied > 0:
+        print(f"Copied {log_files_copied} log files to web directory")
+    else:
+        print("No log files found to copy")
+    
+    return True
+
+def copy_test_reports(project_dir, web_dir):
+    """Copy test reports from the project directory to the web directory."""
+    # Get all model-specific directories in the project reports directory
+    project_reports_dir = os.path.join(project_dir, 'reports')
+    web_reports_dir = os.path.join(web_dir, 'reports')
+    
+    if not os.path.exists(project_reports_dir):
+        print("Project reports directory not found, skipping test report copying")
+        return False
+    
+    # Create the web reports directory if it doesn't exist
+    os.makedirs(web_reports_dir, exist_ok=True)
+    
+    # Get all model-specific directories
+    model_dirs = [d for d in os.listdir(project_reports_dir) if os.path.isdir(os.path.join(project_reports_dir, d))]
+    
+    test_reports_copied = 0
+    
+    # For each model directory, copy all test report files to the corresponding web directory
+    for model_dir in model_dirs:
+        project_model_dir = os.path.join(project_reports_dir, model_dir)
+        web_model_dir = os.path.join(web_reports_dir, model_dir)
+        
+        # Create the web model directory if it doesn't exist
+        os.makedirs(web_model_dir, exist_ok=True)
+        
+        # Find all test report files in the project model directory
+        test_report_files = [f for f in os.listdir(project_model_dir) 
+                           if f.endswith('_test_report.html') or f == 'latest_test_report.html']
+        
+        # Copy each test report file to the web model directory
+        for report_file in test_report_files:
+            src_path = os.path.join(project_model_dir, report_file)
+            dest_path = os.path.join(web_model_dir, report_file)
+            
+            try:
+                copy_file(src_path, dest_path)
+                test_reports_copied += 1
+            except Exception as e:
+                print(f"Error copying test report file {report_file}: {e}")
+    
+    if test_reports_copied > 0:
+        print(f"Copied {test_reports_copied} test reports to web directory")
+    else:
+        print("No test reports found to copy")
+    
+    return True
 
 def cleanup_old_reports(web_dir):
     """Clean up old timestamped reports and keep only the latest ones in model-specific directories."""
@@ -374,18 +504,82 @@ def generate_reports(project_dir):
     else:
         print("\nNote: CIFAR-100 training log not found. Skipping progress report generation.")
     
+    # Check for meta-model logs and generate reports
+    meta_model_logs = []
+    logs_dir = os.path.join(project_dir, 'logs')
+    if os.path.exists(logs_dir):
+        for file in os.listdir(logs_dir):
+            if re.match(r'.+_meta_model_\d+pct\.log$', file):
+                meta_model_logs.append(os.path.join(logs_dir, file))
+    
+    if meta_model_logs:
+        try:
+            print("\nGenerating Meta-Model training progress reports...")
+            for log_path in meta_model_logs:
+                # Extract dataset and sample size from filename
+                match = re.match(r'(.+)_meta_model_(\d+)pct\.log$', os.path.basename(log_path))
+                if match:
+                    dataset = match.group(1)
+                    sample_size = int(match.group(2))
+                    
+                    print(f"Processing meta-model log for {dataset} at {sample_size}% resource level...")
+                    meta_model_script = os.path.join(project_dir, 'generate_meta_model_report.py')
+                    result = subprocess.run(
+                        [sys.executable, meta_model_script, 
+                         '--dataset', dataset, 
+                         '--sample_size', str(sample_size/100)], 
+                        cwd=project_dir, check=False
+                    )
+                    
+                    if result.returncode == 0:
+                        print(f"Meta-model report for {dataset} {sample_size}% generated successfully.")
+                    else:
+                        print(f"Warning: Meta-model report generation for {dataset} {sample_size}% may have encountered issues.")
+        except Exception as e:
+            print(f"Error: Could not run meta-model report generation: {e}")
+    else:
+        print("\nNote: No meta-model logs found. Skipping meta-model report generation.")
+    
     print("\nReport generation complete.")
 
 def main():
     # Get project directory
     project_dir = Path(__file__).parent.parent.parent.absolute()
     
-    # Default web directory
-    web_dir = "/var/www/html/loss.computer-wizard.com.au"
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description='Setup the LossLandscapeProbe website.')
+    parser.add_argument('--web-dir', help='Web server directory (overrides config file)')
+    args = parser.parse_args()
     
-    # Check if alternative web directory was provided
-    if len(sys.argv) > 1:
-        web_dir = sys.argv[1]
+    # Load configuration from file
+    config_path = os.path.join(project_dir, 'config', 'website_config.json')
+    web_dir = "/var/www/html/loss.computer-wizard.com.au"  # Default fallback
+    
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as config_file:
+                config = json.load(config_file)
+                web_dir = config.get('web_dir', web_dir)
+                print(f"Loaded web directory from config file: {web_dir}")
+        except Exception as e:
+            print(f"Warning: Could not load config file: {e}")
+    else:
+        print(f"Warning: Config file not found at {config_path}. Using default web directory.")
+    
+    # Command-line argument overrides config file
+    if args.web_dir:
+        web_dir = args.web_dir
+        print(f"Using web directory from command line: {web_dir}")
+        
+        # Save to config for future use
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        try:
+            with open(config_path, 'w') as config_file:
+                json.dump({"web_dir": web_dir, "comment": "This configuration file stores the web server directory for the LossLandscapeProbe website."}, config_file, indent=4)
+                print(f"Updated config file with new web directory.")
+        except Exception as e:
+            print(f"Warning: Could not update config file: {e}")
+    
     
     print(f"Project directory: {project_dir}")
     print(f"Web directory: {web_dir}")
@@ -411,29 +605,29 @@ def main():
     else:
         print(f"Note: Training plot not found at {training_plot_path}. The website will show a placeholder message.")
         
-    # Copy the PHP script for on-demand CIFAR-10 progress report generation
-    php_script_path = os.path.join(project_dir, 'src', 'deployment', 'generate_cifar10_progress_php.php')
-    web_php_script_path = os.path.join(web_dir, 'generate_cifar10_progress_php.php')
+    # Copy PHP scripts for progress visualization
+    php_scripts = [
+        'generate_cifar10_progress_php.php',
+        'generate_cifar100_progress_php.php',
+        'generate_meta_model_progress_php.php'
+    ]
     
-    if os.path.exists(php_script_path):
-        copy_file(php_script_path, web_php_script_path)
-        print(f"Copied CIFAR-10 progress PHP script to {web_php_script_path}")
-    else:
-        print(f"Note: CIFAR-10 progress PHP script not found at {php_script_path}.")
-    
-    # Copy training reports if they exist (as a fallback)
-    training_report_path = os.path.join(project_dir, 'training_report.html')
-    web_training_report_path = os.path.join(web_dir, 'training_report.html')
-    
-    if os.path.exists(training_report_path):
-        copy_file(training_report_path, web_training_report_path)
-        print(f"Copied training report to {web_training_report_path} (fallback)")
-    else:
-        print(f"Note: Training report not found at {training_report_path}.")
+    for script in php_scripts:
+        php_script_path = os.path.join(project_dir, 'src', 'deployment', script)
+        web_php_script_path = os.path.join(web_dir, script)
+        
+        if os.path.exists(php_script_path):
+            copy_file(php_script_path, web_php_script_path)
+            print(f"Copied {script} to {web_php_script_path}")
+        else:
+            print(f"Note: {script} not found at {php_script_path}.")
     
     # Copy CIFAR-100 transfer report if it exists
-    cifar100_report_path = os.path.join(project_dir, 'cifar100_transfer_report.html')
-    web_cifar100_report_path = os.path.join(web_dir, 'cifar100_transfer_report.html')
+    cifar100_report_dir = os.path.join(project_dir, 'reports', 'cifa100_transfer')
+    cifar100_report_path = os.path.join(cifar100_report_dir, 'latest_test_report.html')
+    web_cifar100_report_dir = os.path.join(web_dir, 'reports', 'cifa100_transfer')
+    os.makedirs(web_cifar100_report_dir, exist_ok=True)
+    web_cifar100_report_path = os.path.join(web_cifar100_report_dir, 'latest_test_report.html')
     
     if os.path.exists(cifar100_report_path):
         copy_file(cifar100_report_path, web_cifar100_report_path)
@@ -442,44 +636,6 @@ def main():
         print(f"Note: CIFAR-100 transfer report not found at {cifar100_report_path}. The website will show a placeholder message.")
         print(f"This is expected if the CIFAR-100 transfer experiment is still running.")
         
-    # Copy the PHP script for on-demand CIFAR-100 progress report generation
-    php_script_path = os.path.join(project_dir, 'src', 'deployment', 'generate_cifar100_progress_php.php')
-    web_php_script_path = os.path.join(web_dir, 'generate_cifar100_progress_php.php')
-    
-    if os.path.exists(php_script_path):
-        copy_file(php_script_path, web_php_script_path)
-        print(f"Copied CIFAR-100 progress PHP script to {web_php_script_path}")
-    else:
-        print(f"Note: CIFAR-100 progress PHP script not found at {php_script_path}.")
-    
-    # Copy CIFAR-10 progress report if it exists (as a fallback)
-    cifar10_progress_report_path = os.path.join(project_dir, 'reports', 'cifar10_progress_report.html')
-    web_cifar10_progress_report_path = os.path.join(web_dir, 'cifar10_progress_report.html')
-    if os.path.exists(cifar10_progress_report_path):
-        copy_file(cifar10_progress_report_path, web_cifar10_progress_report_path)
-        print(f"Copied CIFAR-10 training progress report to {web_cifar10_progress_report_path}")
-        
-        # Also copy the data file if it exists
-        cifar10_progress_data_path = os.path.join(project_dir, 'reports', 'cifar10_progress_report.pth')
-        web_cifar10_progress_data_path = os.path.join(web_dir, 'cifar10_progress_report.pth')
-        if os.path.exists(cifar10_progress_data_path):
-            copy_file(cifar10_progress_data_path, web_cifar10_progress_data_path)
-            print(f"Copied CIFAR-10 training progress data file to {web_cifar10_progress_data_path}")
-    else:
-        print(f"Note: CIFAR-10 training progress report not found at {cifar10_progress_report_path}.")
-        print(f"This is expected if CIFAR-10 training has not been run yet.")
-    
-    # Create reports directory for all test reports
-    reports_dir = os.path.join(web_dir, 'reports')
-    os.makedirs(reports_dir, exist_ok=True)
-    
-    # Create training reports directory
-    training_reports_dir = os.path.join(web_dir, 'training_reports')
-    os.makedirs(training_reports_dir, exist_ok=True)
-    
-    # Setup model directories based on the actual directory structure
-    setup_model_directories(project_dir, web_dir)
-    
     # Copy specific progress reports to web directory for direct access
     # Check multiple possible locations for CIFAR-10 progress report
     cifar10_progress_report_paths = [
@@ -501,23 +657,30 @@ def main():
         # Generate a placeholder progress report for CIFAR-10
         placeholder_path = os.path.join(web_dir, 'cifar10_progress_report.html')
         with open(placeholder_path, 'w') as f:
-            f.write("""<!DOCTYPE html>
+            cifar10_progress_html = f'''
+<!DOCTYPE html>
 <html>
 <head>
     <title>CIFAR-10 Training Progress</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
-        .message { padding: 20px; background-color: #f8f9fa; border-left: 4px solid #007bff; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>CIFAR-10 Training Progress</h1>
+    <div class="navigation">
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="cifar10_progress.html" class="active">CIFAR-10 Progress</a></li>
+            <li><a href="cifar100_progress.html">CIFAR-100 Progress</a></li>
+            <li><a href="generate_meta_model_progress_php.php">Meta-Model Progress</a></li>
+            <li><a href="about.html">About</a></li>
+        </ul>
+    </div>
     <div class="message">
         <p>Training is currently in progress. This report will be updated when training data becomes available.</p>
         <p>Check back later for visualizations of the training progress.</p>
     </div>
 </body>
-</html>""")
+</html>'''
+            f.write(cifar10_progress_html)
         print("Created placeholder CIFAR-10 progress report")
     
     # Check multiple possible locations for CIFAR-100 progress report
@@ -540,23 +703,30 @@ def main():
         # Generate a placeholder progress report for CIFAR-100
         placeholder_path = os.path.join(web_dir, 'cifar100_progress_report.html')
         with open(placeholder_path, 'w') as f:
-            f.write("""<!DOCTYPE html>
+            cifar100_progress_html = f'''
+<!DOCTYPE html>
 <html>
 <head>
     <title>CIFAR-100 Training Progress</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
-        .message { padding: 20px; background-color: #f8f9fa; border-left: 4px solid #007bff; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>CIFAR-100 Training Progress</h1>
+    <div class="navigation">
+        <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="cifar10_progress.html">CIFAR-10 Progress</a></li>
+            <li><a href="cifar100_progress.html" class="active">CIFAR-100 Progress</a></li>
+            <li><a href="generate_meta_model_progress_php.php">Meta-Model Progress</a></li>
+            <li><a href="about.html">About</a></li>
+        </ul>
+    </div>
     <div class="message">
         <p>Training is currently in progress. This report will be updated when training data becomes available.</p>
         <p>Check back later for visualizations of the training progress.</p>
     </div>
 </body>
-</html>""")
+</html>'''
+            f.write(cifar100_progress_html)
         print("Created placeholder CIFAR-100 progress report")
     else:
         print(f"Note: No reports found in {project_reports_dir}. The website will show placeholder messages.")
@@ -594,8 +764,14 @@ def main():
     print("\nUpdating test report headings...")
     update_test_report_headings(web_dir)
     
-    # Copy markdown files (README and whitepaper)
+    # Copy markdown files (README, whitepaper, and LICENSE)
     copy_markdown_files(project_dir, web_dir)
+    
+    # Copy log files from report directories to web directory
+    copy_log_files(project_dir, web_dir)
+    
+    # Copy test reports from project directory to web directory
+    copy_test_reports(project_dir, web_dir)
     
     # Set permissions
     try:

@@ -1,0 +1,4 @@
+{
+    "web_dir": "/var/www/html/loss.computer-wizard.com.au",
+    "comment": "This configuration file stores the web server directory for the LossLandscapeProbe website."
+}

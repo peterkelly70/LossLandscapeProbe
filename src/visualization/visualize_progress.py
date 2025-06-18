@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Unified visualization script for training progress across different datasets and resource levels.
+Unified visualization script for training progress across different datasets and sample sizes.
 This script can handle:
 - CIFAR-10 (full dataset)
-- CIFAR-10 with different resource levels (10%, 40%, etc.)
+- CIFAR-10 with different sample sizes (10%, 40%, etc.)
 - CIFAR-100 (full dataset)
-- CIFAR-100 with different resource levels (10%, 40%, etc.)
+- CIFAR-100 with different sample sizes (10%, 40%, etc.)
 
 It generates HTML reports with interactive visualizations of training metrics.
 """
@@ -34,7 +34,7 @@ from llp.utils import setup_logging
 logger = setup_logging('visualize_progress')
 
 # Define constants
-RESOURCE_LEVELS = ['10', '20', '30', '40', '100']
+SAMPLE_SIZES = ['10', '20', '30', '40', '100']
 DATASETS = ['cifar10', 'cifar100']
 OUTPUT_DIR = os.path.join(project_root, 'reports')
 
@@ -45,13 +45,13 @@ def parse_args():
     parser.add_argument('--log', type=str, help='Path to training log file')
     parser.add_argument('--output', type=str, help='Path to output HTML report')
     parser.add_argument('--dataset', type=str, choices=DATASETS, help='Dataset type (cifar10 or cifar100)')
-    parser.add_argument('--resource-level', type=str, choices=RESOURCE_LEVELS, help='Resource level (10, 20, 30, 40, or 100 for full dataset)')
+    parser.add_argument('--sample-size', type=str, choices=SAMPLE_SIZES, help='Sample size (10, 20, 30, 40, or 100 for full dataset)')
     parser.add_argument('--title', type=str, help='Custom title for the report')
     return parser.parse_args()
 
 
 def detect_dataset_from_log(log_path):
-    """Auto-detect dataset type and resource level from log filename."""
+    """Auto-detect dataset type and sample size from log filename."""
     filename = os.path.basename(log_path).lower()
     
     # Detect dataset
@@ -61,14 +61,14 @@ def detect_dataset_from_log(log_path):
             dataset = ds
             break
     
-    # Detect resource level
-    resource_level = '100'  # Default to full dataset
-    for level in RESOURCE_LEVELS:
+    # Detect sample size
+    sample_size = '100'  # Default to full dataset
+    for level in SAMPLE_SIZES:
         if f"_{level}" in filename or f"-{level}" in filename:
-            resource_level = level
+            sample_size = level
             break
             
-    return dataset, resource_level
+    return dataset, sample_size
 
 
 def parse_training_log(log_path, dataset):
@@ -106,7 +106,7 @@ def parse_training_log(log_path, dataset):
     }
 
 
-def generate_plots(data, dataset, resource_level, output_dir):
+def generate_plots(data, dataset, sample_size, output_dir):
     """Generate plots for training metrics."""
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -117,23 +117,23 @@ def generate_plots(data, dataset, resource_level, output_dir):
     # Generate loss plot
     plt.figure(figsize=(10, 6))
     plt.plot(data['epochs'], data['losses'], 'b-', linewidth=2)
-    plt.title(f'{dataset.upper()} Training Loss (Resource Level: {resource_level}%)')
+    plt.title(f'{dataset.upper()} Training Loss (Sample Size: {sample_size}%)')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
     plt.grid(True)
-    loss_plot_path = os.path.join(output_dir, f'{dataset}_{resource_level}_loss.png')
+    loss_plot_path = os.path.join(output_dir, f'{dataset}_{sample_size}_loss.png')
     plt.savefig(loss_plot_path, dpi=100, bbox_inches='tight')
     plt.close()
     
     # Generate accuracy plot
     plt.figure(figsize=(10, 6))
     plt.plot(data['epochs'], data['accuracies'], 'g-', linewidth=2)
-    plt.title(f'{dataset.upper()} Training Accuracy (Resource Level: {resource_level}%)')
+    plt.title(f'{dataset.upper()} Training Accuracy (Sample Size: {sample_size}%)')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.grid(True)
     plt.ylim(0, 1.0)  # Accuracy is between 0 and 1
-    accuracy_plot_path = os.path.join(output_dir, f'{dataset}_{resource_level}_accuracy.png')
+    accuracy_plot_path = os.path.join(output_dir, f'{dataset}_{sample_size}_accuracy.png')
     plt.savefig(accuracy_plot_path, dpi=100, bbox_inches='tight')
     plt.close()
     
@@ -143,10 +143,10 @@ def generate_plots(data, dataset, resource_level, output_dir):
     }
 
 
-def generate_html_report(data, plots, dataset, resource_level, output_path, title=None):
+def generate_html_report(data, plots, dataset, sample_size, output_path, title=None):
     """Generate HTML report with interactive visualizations."""
     if title is None:
-        title = f"{dataset.upper()} Training Progress (Resource Level: {resource_level}%)"
+        title = f"{dataset.upper()} Training Progress - Sample Size {sample_size}%"
     
     # Get relative paths for plots
     loss_plot_rel = plots['loss_plot']
@@ -297,7 +297,7 @@ def generate_html_report(data, plots, dataset, resource_level, output_path, titl
     data_path = output_path.replace('.html', '.pth')
     torch.save({
         'dataset': dataset,
-        'resource_level': resource_level,
+        'sample_size': sample_size,
         'epochs': data['epochs'],
         'losses': data['losses'],
         'accuracies': data['accuracies'],
@@ -329,16 +329,16 @@ def main():
         logger.info(f"Using most recent log file: {log_path}")
     
     # Determine dataset and resource level
-    if args.dataset and args.resource_level:
+    if args.dataset and args.sample_size:
         dataset = args.dataset
-        resource_level = args.resource_level
+        sample_size = args.sample_size
     else:
-        dataset, resource_level = detect_dataset_from_log(log_path)
+        dataset, sample_size = detect_dataset_from_log(log_path)
         if not dataset:
             logger.error("Could not detect dataset from log filename. Please specify with --dataset.")
             sys.exit(1)
     
-    logger.info(f"Processing {dataset.upper()} dataset with resource level {resource_level}%")
+    logger.info(f"Processing {dataset.upper()} dataset with sample size {sample_size}%")
     
     # Parse training log
     data = parse_training_log(log_path, dataset)
@@ -355,14 +355,14 @@ def main():
     else:
         output_dir = OUTPUT_DIR
         os.makedirs(output_dir, exist_ok=True)
-        output_path = os.path.join(output_dir, f"{dataset}_{resource_level}_progress_report.html")
+        output_path = os.path.join(output_dir, f"{dataset}_{sample_size}_progress_report.html")
     
     # Generate plots
-    plots = generate_plots(data, dataset, resource_level, output_dir)
+    plots = generate_plots(data, dataset, sample_size, output_dir)
     
     # Generate HTML report
     html_path, data_path = generate_html_report(
-        data, plots, dataset, resource_level, output_path, title=args.title
+        data, plots, dataset, sample_size, output_path, title=args.title
     )
     
     logger.info(f"Generated HTML report: {html_path}")

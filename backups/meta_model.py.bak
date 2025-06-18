@@ -1,0 +1,632 @@
+"""
+Meta-Model for Hyperparameter Prediction
+=======================================
+
+This module implements a meta-learning approach to predict optimal hyperparameters
+based on dataset characteristics and partial training results.
+"""
+
+import torch
+import torch.nn as nn
+import numpy as np
+from typing import Dict, List, Tuple, Any, Optional
+import logging
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+import joblib
+import os
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+class DatasetFeatureExtractor:
+    """
+    Extracts statistical features from a dataset to use as input for the meta-model.
+    """
+    
+    def __init__(self):
+        """Initialize the feature extractor."""
+        self.feature_names = [
+            # Basic statistics
+            'num_samples', 'num_features', 'num_classes',
+            # Class distribution statistics
+            'class_imbalance', 'class_entropy',
+            # Feature statistics
+            'feature_mean', 'feature_std', 'feature_skew', 'feature_kurtosis',
+            # Complexity measures
+            'feature_correlation_mean', 'feature_correlation_std'
+        ]
+    
+    def extract_features(self, train_loader, val_loader=None) -> Dict[str, float]:
+        """
+        Extract statistical features from the dataset.
+        
+        Args:
+            train_loader: DataLoader for the training set
+            val_loader: Optional DataLoader for the validation set
+            
+        Returns:
+            Dictionary of dataset features
+        """
+        logger.info("Extracting dataset features...")
+        
+        # Initialize feature dictionary
+        features = {}
+        
+        # Collect all data for analysis
+        all_data = []
+        all_labels = []
+        
+        for inputs, targets in train_loader:
+            all_data.append(inputs.cpu().numpy().reshape(inputs.shape[0], -1))
+            all_labels.append(targets.cpu().numpy())
+        
+        all_data = np.vstack(all_data)
+        all_labels = np.concatenate(all_labels)
+        
+        # Basic statistics
+        features['num_samples'] = len(all_labels)
+        features['num_features'] = all_data.shape[1]
+        features['num_classes'] = len(np.unique(all_labels))
+        
+        # Class distribution statistics
+        class_counts = np.bincount(all_labels.astype(int))
+        class_probs = class_counts / len(all_labels)
+        features['class_imbalance'] = np.max(class_probs) / np.min(class_probs) if np.min(class_probs) > 0 else 1.0
+        features['class_entropy'] = -np.sum(class_probs * np.log(class_probs + 1e-10))
+        
+        # Feature statistics
+        features['feature_mean'] = np.mean(all_data)
+        features['feature_std'] = np.std(all_data)
+        features['feature_skew'] = np.mean(((all_data - np.mean(all_data, axis=0)) / (np.std(all_data, axis=0) + 1e-10)) ** 3)
+        features['feature_kurtosis'] = np.mean(((all_data - np.mean(all_data, axis=0)) / (np.std(all_data, axis=0) + 1e-10)) ** 4)
+        
+        # Complexity measures - sample correlation matrix for a subset of features
+        if all_data.shape[1] > 1:
+            # Sample up to 1000 features for correlation analysis to keep computation manageable
+            sample_size = min(1000, all_data.shape[1])
+            sampled_features = np.random.choice(all_data.shape[1], sample_size, replace=False)
+            sampled_data = all_data[:, sampled_features]
+            
+            # Calculate correlation matrix
+            corr_matrix = np.corrcoef(sampled_data.T)
+            # Get upper triangle without diagonal
+            upper_triangle = corr_matrix[np.triu_indices_from(corr_matrix, k=1)]
+            
+            features['feature_correlation_mean'] = np.mean(np.abs(upper_triangle))
+            features['feature_correlation_std'] = np.std(np.abs(upper_triangle))
+        else:
+            features['feature_correlation_mean'] = 0.0
+            features['feature_correlation_std'] = 0.0
+        
+        logger.info(f"Extracted {len(features)} dataset features")
+        return features
+
+
+class TrainingResultFeatureExtractor:
+    """
+    Extracts features from partial training results to enhance the meta-model.
+    """
+    
+    def __init__(self):
+        """Initialize the training result feature extractor."""
+        self.feature_names = [
+            # Training dynamics
+            'initial_loss', 'final_loss', 'loss_decrease_rate',
+            'initial_accuracy', 'final_accuracy', 'accuracy_increase_rate',
+            # Sharpness measures
+            'sharpness', 'perturbation_robustness',
+            # Resource usage
+            'resource_level', 'epochs'
+        ]
+    
+    def extract_features(self, training_history: List[Dict[str, Any]], sharpness: float) -> Dict[str, float]:
+        """
+        Extract features from training history and sharpness measurement.
+        
+        Args:
+            training_history: List of dictionaries containing training metrics per epoch
+            sharpness: Measured sharpness of the loss landscape
+            
+        Returns:
+            Dictionary of training result features
+        """
+        features = {}
+        
+        if not training_history:
+            logger.warning("Empty training history provided")
+            return {name: 0.0 for name in self.feature_names}
+        
+        # Extract loss dynamics
+        losses = [entry.get('loss', 0.0) for entry in training_history if 'loss' in entry]
+        if losses:
+            features['initial_loss'] = losses[0]
+            features['final_loss'] = losses[-1]
+            features['loss_decrease_rate'] = (losses[0] - losses[-1]) / len(losses) if len(losses) > 1 else 0.0
+        else:
+            features['initial_loss'] = 0.0
+            features['final_loss'] = 0.0
+            features['loss_decrease_rate'] = 0.0
+        
+        # Extract accuracy dynamics
+        accuracies = [entry.get('accuracy', 0.0) for entry in training_history if 'accuracy' in entry]
+        if accuracies:
+            features['initial_accuracy'] = accuracies[0]
+            features['final_accuracy'] = accuracies[-1]
+            features['accuracy_increase_rate'] = (accuracies[-1] - accuracies[0]) / len(accuracies) if len(accuracies) > 1 else 0.0
+        else:
+            features['initial_accuracy'] = 0.0
+            features['final_accuracy'] = 0.0
+            features['accuracy_increase_rate'] = 0.0
+        
+        # Sharpness measures
+        features['sharpness'] = sharpness
+        features['perturbation_robustness'] = 1.0 / (sharpness + 1e-10)
+        
+        # Resource usage
+        features['resource_level'] = training_history[0].get('resource_level', 0.0) if training_history else 0.0
+        features['epochs'] = len(training_history)
+        
+        return features
+
+
+class HyperparameterPredictor:
+    """
+    Meta-model that predicts optimal hyperparameters based on dataset features
+    and partial training results.
+    """
+    
+    def __init__(self, model_dir: Optional[str] = None):
+        """
+        Initialize the hyperparameter predictor.
+        
+        Args:
+            model_dir: Directory to save/load model files
+        """
+        self.model_dir = model_dir or os.path.join(os.path.dirname(__file__), '../models/meta')
+        os.makedirs(self.model_dir, exist_ok=True)
+        
+        # Initialize data storage
+        self.X = []  # Feature vectors
+        self.y = []  # Performance values
+        self.configs = []  # Hyperparameter configurations
+        
+        # Initialize models
+        self.models = {}  # Maps hyperparameter name to model
+        self.feature_scaler = StandardScaler()
+        self.label_encoders = {}  # For categorical hyperparameters
+        self.hyperparameter_types = {}  # Maps hyperparameter name to type
+        
+        # Feature names
+        self.dataset_feature_names = [
+            # Basic statistics
+            'num_samples', 'num_features', 'num_classes',
+            # Class distribution statistics
+            'class_imbalance', 'class_entropy',
+            # Feature statistics
+            'feature_mean', 'feature_std', 'feature_skew', 'feature_kurtosis',
+            # Complexity measures
+            'feature_correlation_mean', 'feature_correlation_std'
+        ]
+        self.training_feature_names = [
+            # Training dynamics
+            'initial_loss', 'final_loss', 'loss_decrease_rate',
+            'initial_accuracy', 'final_accuracy', 'accuracy_increase_rate',
+            # Sharpness measures
+            'sharpness', 'perturbation_robustness',
+            # Resource usage
+            'resource_level', 'epochs'
+        ]
+        self.feature_names = self.dataset_feature_names + self.training_feature_names  # Combined feature names for importance analysis
+        
+        logger.info(f"Initialized HyperparameterPredictor with model directory: {self.model_dir}")
+        
+        # Try to load existing models
+        self.load()
+
+    def _get_feature_vector(self, dataset_features: Dict[str, float], 
+                           training_features: Dict[str, float]) -> np.ndarray:
+        """
+        Combine dataset and training features into a single feature vector.
+        
+        Args:
+            dataset_features: Features extracted from the dataset
+            training_features: Features extracted from training results
+            
+        Returns:
+            Combined feature vector
+        """
+        # Combine all features
+        all_features = {}
+        all_features.update(dataset_features)
+        all_features.update(training_features)
+        
+        # Convert to vector in a consistent order
+        feature_names = list(self.dataset_feature_extractor.feature_names) + \
+                        list(self.training_feature_extractor.feature_names)
+        
+        feature_vector = np.array([all_features.get(name, 0.0) for name in feature_names])
+        return feature_vector
+    
+    def add_training_example(self, 
+                            dataset_features: Dict[str, float],
+                            training_features: Dict[str, float],
+                            hyperparameters: Dict[str, Any],
+                            performance: float):
+        """
+        Add a training example to the meta-model.
+        
+        Args:
+            dataset_features: Features extracted from the dataset
+            training_features: Features extracted from training results
+            hyperparameters: Hyperparameter configuration used
+            performance: Performance metric achieved (higher is better)
+        """
+        # Store the example for later training
+        example = {
+            'dataset_features': dataset_features,
+            'training_features': training_features,
+            'hyperparameters': hyperparameters,
+            'performance': performance
+        }
+        
+        # Save the example to disk
+        example_path = os.path.join(self.model_dir, f'example_{len(os.listdir(self.model_dir))}.joblib')
+        joblib.dump(example, example_path)
+        
+        logger.info(f"Added training example with performance {performance:.4f}")
+        
+        # Update hyperparameter types and ranges
+        for name, value in hyperparameters.items():
+            if name not in self.hyperparameter_types:
+                self.hyperparameter_types[name] = type(value)
+                self.hyperparameter_ranges[name] = [value, value]
+                
+                # Track categorical values
+                if isinstance(value, str):
+                    self.categorical_values[name] = {value}
+            else:
+                if isinstance(value, (int, float)):
+                    self.hyperparameter_ranges[name][0] = min(self.hyperparameter_ranges[name][0], value)
+                    self.hyperparameter_ranges[name][1] = max(self.hyperparameter_ranges[name][1], value)
+                elif isinstance(value, str):
+                    if name in self.categorical_values:
+                        self.categorical_values[name].add(value)
+                    else:
+                        self.categorical_values[name] = {value}
+    
+    def train(self):
+        """Train the meta-model on all collected examples."""
+        if not self.X or not self.y:
+            logger.warning("No training examples available for meta-model")
+            return
+        
+        logger.info(f"Training meta-model on {len(self.X)} examples")
+        
+        # Convert to numpy arrays
+        X = np.array(self.X)
+        y = np.array(self.y)
+        
+        # Fit the feature scaler
+        self.feature_scaler.fit(X)
+        X_scaled = self.feature_scaler.transform(X)
+        
+        # Ensure feature names are populated for feature importance analysis
+        if not self.feature_names and self.dataset_feature_names and self.training_feature_names:
+            self.feature_names = self.dataset_feature_names + self.training_feature_names
+            logger.debug(f"Feature names for importance analysis: {self.feature_names}")
+        
+        # Train a model for each hyperparameter
+        for hyperparam in self.hyperparameters:
+            logger.info(f"Training model for hyperparameter: {hyperparam}")
+            
+            # Get the values for this hyperparameter
+            values = [config.get(hyperparam) for config in self.configs]
+            
+            # Skip if all values are None
+            if all(v is None for v in values):
+                logger.warning(f"All values for {hyperparam} are None, skipping")
+                continue
+            
+            # Determine the type of hyperparameter
+            if isinstance(values[0], (int, float)):
+                # For numerical hyperparameters, use regression
+                model = RandomForestRegressor(n_estimators=100, random_state=42)
+                model.fit(X_scaled, values)
+                self.models[hyperparam] = model
+                
+                # Store the type for later use
+                self.hyperparameter_types[hyperparam] = type(values[0])
+            else:
+                # For categorical hyperparameters, use classification
+                # First encode the values
+                label_encoder = LabelEncoder()
+                encoded_values = label_encoder.fit_transform([str(v) for v in values])
+                
+                model = RandomForestClassifier(n_estimators=100, random_state=42)
+                model.fit(X_scaled, encoded_values)
+                
+                self.models[hyperparam] = model
+                self.label_encoders[hyperparam] = label_encoder
+        
+        # Save the trained models
+        self.save()
+        
+        # Save label encoders
+        for hyperparam, encoder in self.label_encoders.items():
+            encoder_path = os.path.join(self.model_dir, f'encoder_{hyperparam}.joblib')
+            joblib.dump(encoder, encoder_path)
+        
+        logger.info(f"Meta-model training complete, trained models for {len(self.models)} hyperparameters")
+    
+    def load(self):
+        """
+        Load trained models from disk.
+        """
+        logger.info("Loading hyperparameter prediction meta-model...")
+        
+        # Load hyperparameter types, ranges, and categorical values
+        types_path = os.path.join(self.model_dir, 'hyperparameter_types.joblib')
+        ranges_path = os.path.join(self.model_dir, 'hyperparameter_ranges.joblib')
+        categorical_path = os.path.join(self.model_dir, 'categorical_values.joblib')
+        
+        if os.path.exists(types_path) and os.path.exists(ranges_path):
+            self.hyperparameter_types = joblib.load(types_path)
+            self.hyperparameter_ranges = joblib.load(ranges_path)
+            
+            if os.path.exists(categorical_path):
+                self.categorical_values = joblib.load(categorical_path)
+        else:
+            logger.warning("Hyperparameter metadata not found")
+            
+        # Load label encoders
+        for hyperparam in self.categorical_values.keys() if hasattr(self, 'categorical_values') else []:
+            encoder_path = os.path.join(self.model_dir, f'encoder_{hyperparam}.joblib')
+            if os.path.exists(encoder_path):
+                self.label_encoders[hyperparam] = joblib.load(encoder_path)
+        
+        # Find all model files
+        for filename in os.listdir(self.model_dir):
+            if filename.startswith('model_') and filename.endswith('.joblib'):
+                hyperparam = filename[6:-7]  # Extract name from 'model_NAME.joblib'
+                
+                model_path = os.path.join(self.model_dir, filename)
+                scaler_path = os.path.join(self.model_dir, f'scaler_{hyperparam}.joblib')
+                
+                if os.path.exists(model_path) and os.path.exists(scaler_path):
+                    self.models[hyperparam] = joblib.load(model_path)
+                    self.scalers[hyperparam] = joblib.load(scaler_path)
+                    logger.info(f"Loaded model for hyperparameter: {hyperparam}")
+        
+        logger.info(f"Loaded {len(self.models)} hyperparameter prediction models")
+    
+    def predict(self, 
+               dataset_features: Dict[str, float],
+               training_features: Dict[str, float]) -> Dict[str, Any]:
+        """
+        Predict optimal hyperparameters based on dataset and training features.
+        
+        Args:
+            dataset_features: Features extracted from the dataset
+            training_features: Features extracted from training results
+            
+        Returns:
+            Dictionary of predicted optimal hyperparameters
+        """
+        if not self.models:
+            logger.warning("No trained models available, loading from disk...")
+            self.load()
+            
+            if not self.models:
+                logger.error("No trained models available, cannot make predictions")
+                return {}
+        
+        logger.info("Predicting optimal hyperparameters...")
+        
+        # Get feature vector
+        feature_vector = self._get_feature_vector(dataset_features, training_features)
+        
+        # Make predictions for each hyperparameter
+        predictions = {}
+        
+        for hyperparam, model in self.models.items():
+            scaler = self.scalers.get(hyperparam)
+            if scaler is None:
+                logger.warning(f"No scaler found for {hyperparam}, skipping")
+                continue
+            
+            # Scale features
+            X_scaled = scaler.transform(feature_vector.reshape(1, -1))
+            
+            # Check if this is a categorical hyperparameter
+            is_categorical = hyperparam in self.categorical_values if hasattr(self, 'categorical_values') else False
+            
+            if is_categorical:
+                # For categorical hyperparameters, predict class
+                label_encoder = self.label_encoders.get(hyperparam)
+                if label_encoder is None:
+                    logger.warning(f"No label encoder found for {hyperparam}, skipping")
+                    continue
+                    
+                pred_class = model.predict(X_scaled)[0]
+                pred = label_encoder.inverse_transform([pred_class])[0]
+            else:
+                # For numerical hyperparameters, predict value
+                pred = model.predict(X_scaled)[0]
+                
+                # Convert to appropriate type
+                if hyperparam in self.hyperparameter_types:
+                    if self.hyperparameter_types[hyperparam] == int:
+                        pred = int(round(pred))
+                    elif self.hyperparameter_types[hyperparam] == bool:
+                        pred = bool(round(pred))
+            
+            predictions[hyperparam] = pred
+        
+        logger.info(f"Predicted values for {len(predictions)} hyperparameters")
+        return predictions
+        
+    def get_feature_importance(self) -> Dict[str, Dict[str, float]]:
+        """
+        Extract feature importance from the trained Random Forest models.
+        
+        Returns:
+            Dictionary mapping hyperparameters to their feature importance scores
+        """
+        if not self.models or not self.feature_names:
+            logger.warning("No trained models or feature names available for feature importance")
+            return {}
+        
+        importance_data = {}
+        
+        for hyperparam, model in self.models.items():
+            # Extract feature importance
+            importances = model.feature_importances_
+            
+            # Create a dictionary mapping feature names to importance scores
+            feature_importance = {}
+            for feature_name, importance in zip(self.feature_names, importances):
+                feature_importance[feature_name] = float(importance)
+            
+            importance_data[hyperparam] = feature_importance
+            
+            logger.debug(f"Extracted feature importance for {hyperparam}")
+        
+        return importance_data
+        
+    def get_hyperparameter_interaction(self, hyperparam: str, top_features: int = 3) -> Dict[str, Dict[str, List[float]]]:
+        """
+        Analyze how the top important features interact with the target hyperparameter.
+        
+        Args:
+            hyperparam: The hyperparameter to analyze
+            top_features: Number of top features to analyze
+            
+        Returns:
+            Dictionary with partial dependence data
+        """
+        if hyperparam not in self.models or not self.X:
+            logger.warning(f"No model or training data available for {hyperparam}")
+            return {}
+        
+        # Get feature importance
+        model = self.models[hyperparam]
+        importances = model.feature_importances_
+        
+        # Get indices of top features
+        top_indices = np.argsort(importances)[-top_features:]
+        
+        # Get feature names
+        top_feature_names = [self.feature_names[i] for i in top_indices]
+        
+        # Create partial dependence data
+        interaction_data = {}
+        X_array = np.array(self.X)
+        X_scaled = self.feature_scaler.transform(X_array)
+        
+        for idx, feature_name in zip(top_indices, top_feature_names):
+            # Get range of feature values
+            feature_min = np.min(X_scaled[:, idx])
+            feature_max = np.max(X_scaled[:, idx])
+            
+            # Create grid of values
+            grid = np.linspace(feature_min, feature_max, 10)
+            predictions = []
+            
+            # For each grid point, make predictions
+            for grid_point in grid:
+                X_modified = X_scaled.copy()
+                X_modified[:, idx] = grid_point
+                
+                if hyperparam in self.hyperparameter_types:
+                    # Regression model
+                    pred = np.mean(model.predict(X_modified))
+                else:
+                    # Classification model
+                    pred_probs = model.predict_proba(X_modified)
+                    pred = np.mean(pred_probs[:, 0])  # Use first class probability
+                
+                predictions.append(float(pred))
+            
+            # Store grid and predictions
+            interaction_data[feature_name] = {
+                'grid': grid.tolist(),
+                'predictions': predictions
+            }
+        
+        return interaction_data
+
+
+class MetaModelTrainer:
+    """
+    Manages the training of the meta-model using results from hyperparameter evaluations.
+    """
+    
+    def __init__(self, predictor: Optional[HyperparameterPredictor] = None):
+        """
+        Initialize the meta-model trainer.
+        
+        Args:
+            predictor: Optional HyperparameterPredictor instance
+        """
+        self.predictor = predictor or HyperparameterPredictor()
+        self.dataset_feature_extractor = DatasetFeatureExtractor()
+        self.training_feature_extractor = TrainingResultFeatureExtractor()
+    
+    def process_evaluation_result(self, 
+                                 train_loader,
+                                 val_loader,
+                                 config: Dict[str, Any],
+                                 training_history: List[Dict[str, Any]],
+                                 sharpness: float,
+                                 performance: float):
+        """
+        Process an evaluation result and add it to the meta-model training data.
+        
+        Args:
+            train_loader: DataLoader for the training set
+            val_loader: DataLoader for the validation set
+            config: Hyperparameter configuration
+            training_history: List of training metrics per epoch
+            sharpness: Measured sharpness of the loss landscape
+            performance: Performance metric (higher is better)
+        """
+        # Extract dataset features
+        dataset_features = self.dataset_feature_extractor.extract_features(train_loader, val_loader)
+        
+        # Extract training features
+        training_features = self.training_feature_extractor.extract_features(training_history, sharpness)
+        
+        # Add example to meta-model
+        self.predictor.add_training_example(
+            dataset_features=dataset_features,
+            training_features=training_features,
+            hyperparameters=config,
+            performance=performance
+        )
+    
+    def train_meta_model(self):
+        """
+        Train the meta-model on all collected examples.
+        """
+        self.predictor.train()
+    
+    def predict_hyperparameters(self, train_loader, val_loader) -> Dict[str, Any]:
+        """
+        Predict optimal hyperparameters for a new dataset.
+        
+        Args:
+            train_loader: DataLoader for the training set
+            val_loader: DataLoader for the validation set
+            
+        Returns:
+            Dictionary of predicted optimal hyperparameters
+        """
+        # Extract dataset features
+        dataset_features = self.dataset_feature_extractor.extract_features(train_loader, val_loader)
+        
+        # Use empty training features for initial prediction
+        empty_training_features = {name: 0.0 for name in self.training_feature_extractor.feature_names}
+        
+        # Make prediction
+        return self.predictor.predict(dataset_features, empty_training_features)

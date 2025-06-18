@@ -24,12 +24,12 @@ def generate_resource_comparison_data(dataset='cifar10'):
     print(f"\nGenerating {dataset.upper()} resource comparison data...")
     
     # Define resource levels (dataset percentages)
-    resource_levels = [0.1, 0.2, 0.3, 0.4]  # 10%, 20%, 30%, 40%
+    sample_sizes = [0.1, 0.2, 0.3, 0.4]  # 10%, 20%, 30%, 40%
     
     # Sample data for each resource level
     data = []
     
-    for level in resource_levels:
+    for level in sample_sizes:
         # Simulate meta-model time increasing with dataset size
         meta_time = level * 120 + np.random.normal(0, 10)
         
@@ -62,7 +62,7 @@ def generate_resource_comparison_data(dataset='cifar10'):
         
         # Add to data
         data.append({
-            'resource_level': level,
+            'sample_size': level,
             'meta_time': meta_time,
             'training_time': training_time,
             'total_time': meta_time + training_time,
@@ -82,18 +82,18 @@ def generate_resource_comparison_data(dataset='cifar10'):
     df = pd.DataFrame(data)
     
     # Save to CSV
-    csv_path = os.path.join(RESULTS_DIR, f'{dataset}_resource_level_comparison_{DATE_STR}.csv')
+    csv_path = os.path.join(RESULTS_DIR, f'{dataset}_sample_size_comparison_{DATE_STR}.csv')
     df.to_csv(csv_path, index=False)
     print(f"Saved resource comparison data to {csv_path}")
     
     # Generate training history for each resource level
-    generate_training_histories(dataset, resource_levels, DATE_STR)
+    generate_training_histories(dataset, sample_sizes, DATE_STR)
     
     return df
 
-def generate_training_histories(dataset, resource_levels, date_str):
+def generate_training_histories(dataset, sample_sizes, date_str):
     """Generate sample training history data for each resource level."""
-    for level in resource_levels:
+    for level in sample_sizes:
         # Number of epochs increases with resource level
         num_epochs = int(30 + level * 40)
         
@@ -129,14 +129,14 @@ def generate_training_histories(dataset, resource_levels, date_str):
         # Create metadata
         metadata = {
             'dataset': dataset,
-            'resource_level': level,
+            'sample_size': level,
             'num_epochs': num_epochs,
             'date_generated': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'history': history
         }
         
         # Save to JSON
-        json_path = os.path.join(RESULTS_DIR, f'{dataset}_resource_level_{level}_{date_str}.json')
+        json_path = os.path.join(RESULTS_DIR, f'{dataset}_sample_size_{level}_{date_str}.json')
         with open(json_path, 'w') as f:
             json.dump(metadata, f, indent=2)
         print(f"Saved training history for resource level {level} to {json_path}")

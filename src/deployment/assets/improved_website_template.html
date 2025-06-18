@@ -335,6 +335,49 @@
       margin-bottom: 10px;
       text-align: center;
     }
+    
+    /* Report Tabs Styling */
+    .report-tabs {
+      margin-top: 20px;
+    }
+    
+    .tab-navigation {
+      display: flex;
+      border-bottom: 2px solid #444;
+      margin-bottom: 20px;
+    }
+    
+    .tab-navigation button {
+      background: #222;
+      color: #eee;
+      border: none;
+      padding: 10px 20px;
+      margin-right: 5px;
+      cursor: pointer;
+      border-radius: 5px 5px 0 0;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+    
+    .tab-navigation button:hover {
+      background: #333;
+    }
+    
+    .tab-navigation button.active-tab {
+      background: #3498db;
+      color: white;
+      font-weight: bold;
+    }
+    
+    .tab-content {
+      padding: 10px;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
   </style>
 </head>
 <body>
@@ -349,22 +392,23 @@
     
     <div class="navigation">
       <div class="section-title">Documentation</div>
-      <div class="file-link" @click="activeTab = 'readme'">README</div>
       <div class="file-link" @click="activeTab = 'whitepaper'" x-show="whitepaperExists">White Paper</div>
+      <div class="file-link" @click="activeTab = 'readme'">README</div>
+      <div class="file-link" @click="activeTab = 'license'">License</div>
       
       <div class="section-title">CIFAR-10 Models</div>
       <div class="file-link indent" @click="activeTab = 'cifa10'">Base Model</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10_10'">Resource Level 10%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10_20'">Resource Level 20%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10_30'">Resource Level 30%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10_40'">Resource Level 40%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10_10'">Sample Size 10%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10_20'">Sample Size 20%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10_30'">Sample Size 30%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10_40'">Sample Size 40%</div>
       
       <div class="section-title">CIFAR-100 Models</div>
       <div class="file-link indent" @click="activeTab = 'cifa100'">Base Model</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_10'">Resource Level 10%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_20'">Resource Level 20%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_30'">Resource Level 30%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_40'">Resource Level 40%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_10'">Sample Size 10%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_20'">Sample Size 20%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_30'">Sample Size 30%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_40'">Sample Size 40%</div>
       <div class="file-link indent" @click="activeTab = 'cifa100_transfer'">Transfer Learning</div>
       
       <!-- Reports sections removed as per user request -->
@@ -382,83 +426,104 @@
     <!-- Whitepaper Tab -->
     <div x-show="activeTab === 'whitepaper'" class="readme-content" x-html="whitepaperHtml"></div>
     
+    <!-- Loss Modeling Tab -->
+    <div x-show="activeTab === 'loss_modeling'" class="readme-content" x-html="lossModelingHtml"></div>
+    
+    <!-- Meta-Model README Tab -->
+    <div x-show="activeTab === 'meta_model_readme'" class="readme-content" x-html="metaModelReadmeHtml"></div>
+    
+    <!-- License Tab -->
+    <div x-show="activeTab === 'license'" class="readme-content" x-html="licenseHtml"></div>
+    
     <!-- Model Report Template -->
     <template id="model-report-template">
       <div class="report-container">
         <h2 x-text="getModelTitle(activeTab)"></h2>
         
-        <div class="section">
-          <h3>Model Results</h3>
-          <div class="info-message">
-            This report shows the results for the selected model configuration.
+        <!-- Report Tabs -->
+        <div class="report-tabs" x-data="{activeReportTab: 'test-report'}">
+          <div class="tab-navigation">
+            <button 
+              @click="activeReportTab = 'test-report'" 
+              :class="{'active-tab': activeReportTab === 'test-report'}">
+              Test Report
+            </button>
+            <button 
+              @click="activeReportTab = 'training-progress'" 
+              :class="{'active-tab': activeReportTab === 'training-progress'}">
+              Training Progress
+            </button>
+            <button 
+              @click="activeReportTab = 'meta-model'" 
+              :class="{'active-tab': activeReportTab === 'meta-model'}">
+              Meta-Model Report
+            </button>
           </div>
-        </div>
-        
-        <div class="section">
-          <h3>Training Progress</h3>
           
-          <!-- Base model specific progress reports links -->
-          <div x-show="activeTab === 'cifa10'">
-            <p><a href="cifar10_progress_report.html" target="_blank" class="report-link">View CIFAR-10 Training Progress Report</a></p>
-          </div>
-          <div x-show="activeTab === 'cifa100'">
-            <p><a href="cifar100_progress_report.html" target="_blank" class="report-link">View CIFAR-100 Training Progress Report</a></p>
-          </div>
-          <div x-show="activeTab === 'cifa100_transfer'">
-            <p><a href="cifar100_transfer_report.html" target="_blank" class="report-link">View CIFAR-100 Transfer Learning Report</a></p>
-          </div>
-          
-          <!-- Training progress visualization for all models -->
-          <div class="log-container">
-            <h4>Real-time Training Progress</h4>
-            <button @click="fetchTrainingLog(activeTab)" class="refresh-button">Refresh Data</button>
-            
-            <!-- Training metrics visualization -->
-            <div x-show="trainingData.epochs && trainingData.epochs.length > 0" class="metrics-container">
-              <div class="metric-chart">
-                <h5>Training Loss</h5>
-                <canvas :id="activeTab + 'LossChart'" width="400" height="200"></canvas>
+          <!-- Test Report Tab Content -->
+          <div x-show="activeReportTab === 'test-report'" class="tab-content">
+            <div class="section">
+              <h3>Test Results</h3>
+              <div class="info-message">
+                This report shows the test results for the selected model configuration.
               </div>
-              <div class="metric-chart">
-                <h5>Training Accuracy</h5>
-                <canvas :id="activeTab + 'AccuracyChart'" width="400" height="200"></canvas>
+              
+              <!-- Embed the test report -->
+              <div class="test-report-container">
+                <iframe :src="'reports/' + activeTab + '/latest_test_report.html'" style="width: 100%; height: 700px; border: none;"></iframe>
               </div>
             </div>
-            
-            <!-- Raw log display -->
-            <div class="log-section">
-              <h5>Raw Training Log</h5>
-              <pre x-show="trainingLog" x-text="trainingLog" class="log-display"></pre>
-              <p x-show="!trainingLog" class="missing-content">Click 'Refresh Data' to view the latest training progress.</p>
+          </div>
+          
+          <!-- Training Progress Tab Content -->
+          <div x-show="activeReportTab === 'training-progress'" class="tab-content">
+            <div class="section">
+              <h3>Training Progress</h3>
+              
+              <!-- Training progress visualization for all models -->
+              <div class="log-container">
+                <h4>Real-time Training Progress</h4>
+                <button @click="fetchTrainingLog(activeTab)" class="refresh-button">Refresh Data</button>
+                
+                <!-- Training metrics visualization -->
+                <div x-show="trainingData.epochs && trainingData.epochs.length > 0" class="metrics-container">
+                  <div class="metric-chart">
+                    <h5>Training Loss</h5>
+                    <canvas :id="activeTab + 'LossChart'" width="400" height="200"></canvas>
+                  </div>
+                  <div class="metric-chart">
+                    <h5>Training Accuracy</h5>
+                    <canvas :id="activeTab + 'AccuracyChart'" width="400" height="200"></canvas>
+                  </div>
+                </div>
+                
+                <!-- Raw log display -->
+                <div class="log-section">
+                  <h5>Raw Training Log</h5>
+                  <pre x-show="trainingLog" x-text="trainingLog" class="log-display"></pre>
+                  <p x-show="!trainingLog" class="missing-content">Click 'Refresh Data' to view the latest training progress.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Meta-Model Report Tab Content -->
+          <div x-show="activeReportTab === 'meta-model'" class="tab-content">
+            <div class="section">
+              <h3>Meta-Model Analysis</h3>
+              <div class="info-message">
+                This report shows the meta-model training and hyperparameter optimization results.
+              </div>
+              
+              <!-- Embed the meta-model report -->
+              <div class="meta-model-report-container">
+                <iframe :src="'reports/' + activeTab + '/meta_model_report.html'" style="width: 100%; height: 700px; border: none;"></iframe>
+              </div>
             </div>
           </div>
         </div>
         
-        <div class="section">
-          <h3>Available Reports</h3>
-          <div x-show="modelReports.length > 0">
-            <ul class="report-links">
-              <template x-for="report in modelReports">
-                <li>
-                  <a :href="'reports/' + activeTab + '/' + report" target="_blank" x-text="formatReportName(report)"></a>
-                </li>
-              </template>
-            </ul>
-          </div>
-          <div x-show="modelReports.length === 0" class="missing-content">
-            <p>No report files found for this model configuration.</p>
-          </div>
-        </div>
-        
-        <div class="section" x-show="modelReports.some(report => report.endsWith('.pth'))">
-          <h3>Model Data</h3>
-          <p>This model has trained weights and results data available.</p>
-          <div class="info-message">
-            <p>You can load this model's data using the following Python code:</p>
-            <pre>import torch
-results = torch.load('reports/<span x-text="activeTab"></span>/model_results.pth')</pre>
-          </div>
-        </div>
+        <!-- Reports sections removed as requested as they're now handled by tabs -->
       </div>
     </template>
     
@@ -534,7 +599,7 @@ results = torch.load('reports/<span x-text="activeTab"></span>/model_results.pth
       
       <div class="section">
         <h3>Transfer Learning Results</h3>
-        <iframe src="cifar100_transfer_report.html" style="width: 100%; height: 700px; border: none;"></iframe>
+        <iframe src="reports/cifa100_transfer/latest_test_report.html" style="width: 100%; height: 700px; border: none;"></iframe>
       </div>
     </div>
     
@@ -628,7 +693,11 @@ results = torch.load('reports/<span x-text="activeTab"></span>/model_results.pth
         selected: null,
         readmeHtml: '',
         whitepaperHtml: '',
+        lossModelingHtml: '',
+        metaModelReadmeHtml: '',
         whitepaperExists: false,
+        lossModelingExists: false,
+        metaModelReadmeExists: false,
         trainingPlotExists: false,
         trainingReportExists: false,
         cifar100ReportExists: false,
@@ -647,15 +716,15 @@ results = torch.load('reports/<span x-text="activeTab"></span>/model_results.pth
         getModelTitle(tab) {
           switch(tab) {
             case 'cifa10': return 'CIFAR-10 Base Model';
-            case 'cifa10_10': return 'CIFAR-10 Resource Level 10%';
-            case 'cifa10_20': return 'CIFAR-10 Resource Level 20%';
-            case 'cifa10_30': return 'CIFAR-10 Resource Level 30%';
-            case 'cifa10_40': return 'CIFAR-10 Resource Level 40%';
+            case 'cifa10_10': return 'CIFAR-10 Sample Size 10%';
+            case 'cifa10_20': return 'CIFAR-10 Sample Size 20%';
+            case 'cifa10_30': return 'CIFAR-10 Sample Size 30%';
+            case 'cifa10_40': return 'CIFAR-10 Sample Size 40%';
             case 'cifa100': return 'CIFAR-100 Base Model';
-            case 'cifa100_10': return 'CIFAR-100 Resource Level 10%';
-            case 'cifa100_20': return 'CIFAR-100 Resource Level 20%';
-            case 'cifa100_30': return 'CIFAR-100 Resource Level 30%';
-            case 'cifa100_40': return 'CIFAR-100 Resource Level 40%';
+            case 'cifa100_10': return 'CIFAR-100 Sample Size 10%';
+            case 'cifa100_20': return 'CIFAR-100 Sample Size 20%';
+            case 'cifa100_30': return 'CIFAR-100 Sample Size 30%';
+            case 'cifa100_40': return 'CIFAR-100 Sample Size 40%';
             case 'cifa100_transfer': return 'CIFAR-100 Transfer Learning';
             default: return tab;
           }
@@ -900,16 +969,19 @@ results = torch.load('reports/<span x-text="activeTab"></span>/model_results.pth
           switch(this.activeTab) {
             case 'readme': return 'Documentation';
             case 'whitepaper': return 'White Paper';
+            case 'loss_modeling': return 'Loss Modeling';
+            case 'meta_model_readme': return 'Meta-Model README';
+            case 'license': return 'License';
             case 'cifa10': return 'CIFAR-10 Base Model';
-            case 'cifa10_10': return 'CIFAR-10 Resource Level 10%';
-            case 'cifa10_20': return 'CIFAR-10 Resource Level 20%';
-            case 'cifa10_30': return 'CIFAR-10 Resource Level 30%';
-            case 'cifa10_40': return 'CIFAR-10 Resource Level 40%';
+            case 'cifa10_10': return 'CIFAR-10 Sample Size 10%';
+            case 'cifa10_20': return 'CIFAR-10 Sample Size 20%';
+            case 'cifa10_30': return 'CIFAR-10 Sample Size 30%';
+            case 'cifa10_40': return 'CIFAR-10 Sample Size 40%';
             case 'cifa100': return 'CIFAR-100 Base Model';
-            case 'cifa100_10': return 'CIFAR-100 Resource Level 10%';
-            case 'cifa100_20': return 'CIFAR-100 Resource Level 20%';
-            case 'cifa100_30': return 'CIFAR-100 Resource Level 30%';
-            case 'cifa100_40': return 'CIFAR-100 Resource Level 40%';
+            case 'cifa100_10': return 'CIFAR-100 Sample Size 10%';
+            case 'cifa100_20': return 'CIFAR-100 Sample Size 20%';
+            case 'cifa100_30': return 'CIFAR-100 Sample Size 30%';
+            case 'cifa100_40': return 'CIFAR-100 Sample Size 40%';
             case 'cifa100_transfer': return 'CIFAR-100 Transfer Learning';
             case 'training_reports': return 'Training Reports';
             case 'reports': return 'Additional Test Reports';
@@ -960,6 +1032,51 @@ results = torch.load('reports/<span x-text="activeTab"></span>/model_results.pth
               console.error("Failed to fetch whitepaper:", err);
               this.whitepaperExists = false;
             });
+            
+          // Fetch Loss Modeling document
+          fetch('LossModeling.md')
+            .then(res => {
+              this.lossModelingExists = res.ok;
+              if (res.ok) return res.text();
+              throw new Error("Loss Modeling document not found");
+            })
+            .then(data => {
+              this.lossModelingHtml = marked.parse(data);
+            })
+            .catch(err => {
+              console.error("Failed to fetch Loss Modeling document:", err);
+              this.lossModelingExists = false;
+            });
+            
+          // Fetch Meta-Model README
+          fetch('README_META_MODEL.md')
+            .then(res => {
+              this.metaModelReadmeExists = res.ok;
+              if (res.ok) return res.text();
+              throw new Error("Meta-Model README not found");
+            })
+            .then(data => {
+              this.metaModelReadmeHtml = marked.parse(data);
+            })
+            .catch(err => {
+              console.error("Failed to fetch Meta-Model README:", err);
+              this.metaModelReadmeExists = false;
+            });
+            
+          // Fetch license content
+          fetch('LICENSE')
+            .then(res => {
+              if (res.ok) return res.text();
+              throw new Error("License not found");
+            })
+            .then(data => {
+              // Format the license text as preformatted code
+              this.licenseHtml = `<pre style="white-space: pre-wrap; font-family: monospace;">${data}</pre>`;
+            })
+            .catch(err => {
+              console.error("Failed to fetch license:", err);
+              this.licenseHtml = "<p>Failed to load License file. Please check if the LICENSE file exists.</p>";
+            });
           
           // Check if training plot exists
           fetch('training_history.png', { method: 'HEAD' })
@@ -980,7 +1097,7 @@ results = torch.load('reports/<span x-text="activeTab"></span>/model_results.pth
             });
           
           // Check if CIFAR-100 transfer report exists
-          fetch('cifar100_transfer_report.html', { method: 'HEAD' })
+          fetch('reports/cifa100_transfer/latest_test_report.html', { method: 'HEAD' })
             .then(res => {
               this.cifar100ReportExists = res.ok;
             })

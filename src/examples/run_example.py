@@ -30,11 +30,11 @@ EXAMPLES = {
     },
     "cifar10_resource": {
         "description": "Compare different resource levels for meta-model training on CIFAR-10",
-        "script": "resource_level_comparison_cifar10.py"
+        "script": "sample_size_comparison_cifar10.py"
     },
     "cifar100_resource": {
         "description": "Compare different resource levels for meta-model training on CIFAR-100",
-        "script": "resource_level_comparison_cifar100.py"
+        "script": "sample_size_comparison_cifar100.py"
     },
     "visualize": {
         "description": "Visualize results from resource level comparison experiments",

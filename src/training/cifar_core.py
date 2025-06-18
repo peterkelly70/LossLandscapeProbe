@@ -28,6 +28,7 @@ from torch.utils.data import DataLoader, Subset
 import torchvision
 import torchvision.transforms as transforms
 from datetime import datetime
+from typing import Dict, List, Tuple, Any, Optional
 
 # Add the project root directory to the path so we can import the LLP package
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -59,7 +60,7 @@ setup_logger()
 logger = logging.getLogger(__name__)
 
 # Constants
-DEFAULT_RESOURCE_LEVELS = [0.1, 0.2, 0.3, 0.4]
+DEFAULT_SAMPLE_SIZES = [0.1, 0.2, 0.3, 0.4]
 DEFAULT_NUM_ITERATIONS = 3  # Number of meta-model iterations
 DEFAULT_NUM_CONFIGS = 10    # Number of configurations to try per iteration
 DEFAULT_EPOCHS = 100        # Number of epochs for final training
@@ -194,26 +195,26 @@ def create_optimizer(model, config):
         return optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
 
 
-def run_meta_optimization(dataset_name, resource_level, num_iterations=DEFAULT_NUM_ITERATIONS, num_configs=DEFAULT_NUM_CONFIGS):
+def run_meta_optimization(dataset_name, sample_size, num_iterations=DEFAULT_NUM_ITERATIONS, num_configs=DEFAULT_NUM_CONFIGS):
     """Run meta-model optimization to find the best hyperparameters.
     
     Args:
         dataset_name: 'cifar10' or 'cifar100'
-        resource_level: Fraction of dataset to use (e.g., 0.1 for 10%)
+        sample_size: Fraction of dataset to use (e.g., 0.1 for 10%)
         num_iterations: Number of meta-model iterations
         num_configs: Number of configurations to try per iteration
         
     Returns:
         Dictionary with best hyperparameter configuration
     """
-    logger.info(f"Running meta-optimization for {dataset_name} with resource level {resource_level}")
+    logger.info(f"Running meta-optimization for {dataset_name} with sample size {sample_size}")
     
     # Get data loaders for the specified dataset
     if dataset_name.lower() == 'cifar10':
-        trainloader, testloader = get_cifar10_loaders(subset_fraction=resource_level)
+        trainloader, testloader = get_cifar10_loaders(subset_fraction=sample_size)
         num_classes = 10
     else:  # cifar100
-        trainloader, testloader = get_cifar100_loaders(subset_fraction=resource_level)
+        trainloader, testloader = get_cifar100_loaders(subset_fraction=sample_size)
         num_classes = 100
     
     # Define the hyperparameter search space
@@ -284,19 +285,38 @@ def run_meta_optimization(dataset_name, resource_level, num_iterations=DEFAULT_N
             'train_loss': train_loss
         }
     
+    # Setup logging to the appropriate report directory
+    model_type = f"cifa{num_classes}" if sample_size == 1.0 else f"cifa{num_classes}_{int(sample_size*100)}"
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    reports_dir = os.path.join(project_root, "reports", model_type)
+    os.makedirs(reports_dir, exist_ok=True)
+    
+    # Define log file path in the reports directory
+    log_file_path = os.path.join(reports_dir, f"{dataset_name}_meta_model_{int(sample_size*100)}pct.log")
+    
+    # Add file handler to logger
+    file_handler = logging.FileHandler(log_file_path, mode='w')
+    file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    logger.addHandler(file_handler)
+    
+    logger.info(f"Meta-model log will be saved to {log_file_path}")
+    
     # Run the meta-optimization
     best_config = meta_probing.run_meta_optimization(
         max_resource=1.0,  # Full dataset for final evaluation
-        min_resource=resource_level,  # Start with the specified resource level
+        min_resource=sample_size,  # Start with the specified sample size
         num_iterations=num_iterations,
         measure_flatness=True  # Measure loss landscape flatness
     )
+    
+    # Remove the file handler after meta-optimization
+    logger.removeHandler(file_handler)
     
     logger.info(f"Best configuration found: {best_config}")
     return best_config
 
 
-def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=DEFAULT_BATCH_SIZE, resource_level=1.0):
+def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=DEFAULT_BATCH_SIZE, sample_size=1.0):
     """Train and evaluate a model with the given configuration.
     
     Args:
@@ -304,7 +324,7 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
         dataset_name: 'cifar10' or 'cifar100'
         epochs: Number of epochs to train
         batch_size: Batch size for training
-        resource_level: Fraction of dataset to use (default: full dataset)
+        sample_size: Fraction of dataset to use (default: full dataset)
         
     Returns:
         Dictionary with evaluation results
@@ -313,10 +333,10 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
     
     # Get data loaders for the specified dataset
     if dataset_name.lower() == 'cifar10':
-        trainloader, testloader = get_cifar10_loaders(subset_fraction=resource_level, batch_size=batch_size)
+        trainloader, testloader = get_cifar10_loaders(subset_fraction=sample_size, batch_size=batch_size)
         num_classes = 10
     else:  # cifar100
-        trainloader, testloader = get_cifar100_loaders(subset_fraction=resource_level, batch_size=batch_size)
+        trainloader, testloader = get_cifar100_loaders(subset_fraction=sample_size, batch_size=batch_size)
         num_classes = 100
     
     # Create model with the given configuration
@@ -325,25 +345,60 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
     # Create optimizer
     optimizer = create_optimizer(model, config)
     
-    # Create two-tier probing object
-    probing = TwoTierProbing(model, optimizer, nn.CrossEntropyLoss())
-    
-    # Train for the specified number of epochs
+    # Set device
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
+    # Create two-tier probing object with the correct constructor parameters
+    # Define model_fn and optimizer_fn for TwoTierProbing
+    def model_fn(cfg):
+        return create_model(cfg, num_classes=num_classes)
+        
+    def optimizer_fn(mdl, cfg):
+        return create_optimizer(mdl, cfg)
+        
+    def dataset_fn(fraction):
+        if dataset_name.lower() == 'cifar10':
+            return get_cifar10_loaders(subset_fraction=fraction, batch_size=batch_size)
+        else:  # cifar100
+            return get_cifar100_loaders(subset_fraction=fraction, batch_size=batch_size)
+    
+    # Initialize with a single configuration (the one we're training)
+    probing = TwoTierProbing(
+        configs=[config],
+        model_fn=model_fn,
+        dataset_fn=dataset_fn,
+        criterion=nn.CrossEntropyLoss(),
+        optimizer_fn=optimizer_fn,
+        max_epochs=epochs,
+        device=device
+    )
+    
     # Determine the model type for directory structure
-    model_type = f"cifa{num_classes}" if resource_level == 1.0 else f"cifa{num_classes}_{int(resource_level*100)}"
+    model_type = f"cifa{num_classes}" if sample_size == 1.0 else f"cifa{num_classes}_{int(sample_size*100)}"
     reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "reports", model_type)
     os.makedirs(reports_dir, exist_ok=True)
     
     # Create the training log file path
     training_log_path = os.path.join(reports_dir, f"{model_type}_training_log.txt")
     
+    # Define a custom JSON encoder to handle NumPy types
+    class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                return float(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, np.str_):
+                return str(obj)
+            return super(NumpyEncoder, self).default(obj)
+    
     # Open the training log file in append mode
     with open(training_log_path, 'w') as log_file:
-        log_file.write(f"Training log for {dataset_name} model with {int(resource_level*100)}% resource level\n")
+        log_file.write(f"Training log for {dataset_name} model with {int(sample_size*100)}% resource level\n")
         log_file.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        log_file.write(f"Configuration: {json.dumps(config, indent=2)}\n\n")
+        log_file.write(f"Configuration: {json.dumps(config, indent=2, cls=NumpyEncoder)}\n\n")
         log_file.write("Epoch,TrainingLoss,TrainingAccuracy,ValidationLoss,ValidationAccuracy,ElapsedTime\n")
     
     # Define progress callback for detailed logging that also writes to the log file
@@ -356,14 +411,49 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
             log_file.write(f"{epoch},{loss:.4f},{accuracy:.4f},,,{elapsed_time:.2f}\n")
             log_file.flush()  # Ensure the data is written immediately
     
-    # Train and evaluate
-    train_loss, train_acc, val_loss, val_acc = probing.train_and_evaluate(
-        trainloader, testloader, epochs=epochs, device=device, progress_callback=progress_callback
+    # Define progress callback for detailed logging that also writes to the log file
+    def progress_callback_wrapper(epoch_data):
+        epoch = epoch_data['epoch']
+        loss = epoch_data['train_loss']
+        accuracy = epoch_data['train_acc']
+        val_loss = epoch_data['val_loss']
+        val_acc = epoch_data['val_acc']
+        elapsed_time = 0  # Not available in this context
+        
+        logger.info(f"Epoch {epoch}/{epochs}: loss={loss:.4f}, accuracy={accuracy:.4f}, val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
+        
+        # Write to the log file in real-time
+        with open(training_log_path, 'a') as log_file:
+            # Write the epoch data in CSV format
+            log_file.write(f"{epoch},{loss:.4f},{accuracy:.4f},{val_loss:.4f},{val_acc:.4f},{elapsed_time:.2f}\n")
+            log_file.flush()  # Ensure the data is written immediately
+    
+    # Register the callback with the probing object
+    probing.epoch_callback = progress_callback_wrapper
+    
+    # Train and evaluate using the new API
+    result = probing.train_and_evaluate(
+        config=config,
+        sample_size=sample_size,
+        measure_flatness=True
     )
+    
+    # Extract results
+    val_loss = result.val_loss
+    val_acc = result.val_metric
+    
+    # Get the last epoch metrics for training loss and accuracy
+    if probing.epoch_metrics and len(probing.epoch_metrics) > 0:
+        last_epoch = probing.epoch_metrics[-1]
+        train_loss = last_epoch['train_loss']
+        train_acc = last_epoch['train_acc']
+    else:
+        train_loss = 0.0
+        train_acc = 0.0
     
     # Save the trained model to both results and reports directories
     # 1. Save to results directory with timestamp (for archival)
-    model_dir = os.path.join(RESULTS_DIR, f"{dataset_name}_{int(resource_level*100)}pct_{DATE_STR}")
+    model_dir = os.path.join(RESULTS_DIR, f"{dataset_name}_{int(sample_size*100)}pct_{DATE_STR}")
     os.makedirs(model_dir, exist_ok=True)
     
     model_path = os.path.join(model_dir, "model.pth")
@@ -371,7 +461,7 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
     
     # 2. Save to reports directory with fixed name (for website)
     # Create model-specific directory in reports
-    model_type = f"cifa{num_classes}" if resource_level == 1.0 else f"cifa{num_classes}_{int(resource_level*100)}"
+    model_type = f"cifa{num_classes}" if sample_size == 1.0 else f"cifa{num_classes}_{int(sample_size*100)}"
     reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "reports", model_type)
     os.makedirs(reports_dir, exist_ok=True)
     
@@ -384,9 +474,9 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
     
     # Create a training log with all the information
     with open(training_log_path, 'w') as log_file:
-        log_file.write(f"Training log for {dataset_name} model with {int(resource_level*100)}% resource level\n")
+        log_file.write(f"Training log for {dataset_name} model with {int(sample_size*100)}% resource level\n")
         log_file.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        log_file.write(f"Configuration: {json.dumps(config, indent=2)}\n\n")
+        log_file.write(f"Configuration: {json.dumps(config, indent=2, cls=NumpyEncoder)}\n\n")
         log_file.write(f"Final validation accuracy: {val_acc:.4f}\n")
         log_file.write(f"Final training accuracy: {train_acc:.4f}\n")
         log_file.write(f"Final validation loss: {val_loss:.4f}\n")
@@ -423,14 +513,14 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
         'val_loss': val_loss,
         'train_loss': train_loss,
         'epochs': epochs,
-        'resource_level': resource_level,
+        'sample_size': sample_size,
         'dataset': dataset_name,
         'model_path': model_path
     }
     
     results_path = os.path.join(model_dir, "results.json")
     with open(results_path, 'w') as f:
-        json.dump(results, f, indent=4)
+        json.dump(results, f, indent=4, cls=NumpyEncoder)
     
     logger.info(f"Training completed. Results saved to {results_path}")
     return results

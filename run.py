@@ -97,42 +97,42 @@ EXAMPLES = {
                             {"name": "--num-configs", "help": "Number of configurations per iteration", "default": "10", "type": "int"}
                         ]
                     },
-                    "resource_10": {
+                    "sample_size_10": {
                         "description": "Train Meta-Model Using 10% Dataset Slices",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
                             {"name": "--dataset", "help": "Dataset to use", "default": "cifar10", "type": "str", "preselected": True},
                             {"name": "--mode", "help": "Training mode", "default": "single", "type": "str", "preselected": True},
-                            {"name": "--resource-level", "help": "Resource level", "default": "0.1", "type": "float", "preselected": True}
+                            {"name": "--sample-size", "help": "Sample size", "default": "0.1", "type": "float", "preselected": True}
                         ]
                     },
-                    "resource_20": {
+                    "sample_size_20": {
                         "description": "Train Meta-Model Using 20% Dataset Slices",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
                             {"name": "--dataset", "help": "Dataset to use", "default": "cifar10", "type": "str", "preselected": True},
                             {"name": "--mode", "help": "Training mode", "default": "single", "type": "str", "preselected": True},
-                            {"name": "--resource-level", "help": "Resource level", "default": "0.2", "type": "float", "preselected": True}
+                            {"name": "--sample-size", "help": "Sample size", "default": "0.2", "type": "float", "preselected": True}
                         ]
                     },
-                    "resource_30": {
+                    "sample_size_30": {
                         "description": "Train Meta-Model Using 30% Dataset Slice",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
                             {"name": "--dataset", "help": "Dataset to use", "default": "cifar10", "type": "str", "preselected": True},
                             {"name": "--mode", "help": "Training mode", "default": "single", "type": "str", "preselected": True},
-                            {"name": "--resource-level", "help": "Resource level", "default": "0.3", "type": "float", "preselected": True},
+                            {"name": "--sample-size", "help": "Sample size", "default": "0.3", "type": "float", "preselected": True},
                             {"name": "--epochs", "help": "Number of epochs", "default": "100", "type": "int", "preselected": True},
                             {"name": "--batch-size", "help": "Batch size", "default": "128", "type": "int", "preselected": True}
                         ]
                     },
-                    "resource_40": {
+                    "sample_size_40": {
                         "description": "Train Meta-Model Using 40% Dataset Slices",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
                             {"name": "--dataset", "help": "Dataset to use", "default": "cifar10", "type": "str", "preselected": True},
                             {"name": "--mode", "help": "Training mode", "default": "single", "type": "str", "preselected": True},
-                            {"name": "--resource-level", "help": "Resource level", "default": "0.4", "type": "float", "preselected": True},
+                            {"name": "--sample-size", "help": "Sample size", "default": "0.4", "type": "float", "preselected": True},
                             {"name": "--epochs", "help": "Number of epochs", "default": "100", "type": "int", "preselected": True},
                             {"name": "--batch-size", "help": "Batch size", "default": "128", "type": "int", "preselected": True}
                         ]
@@ -156,46 +156,46 @@ EXAMPLES = {
                             {"name": "--num-configs", "help": "Number of configurations per iteration", "default": "10", "type": "int"}
                         ]
                     },
-                    "resource_10": {
+                    "sample_size_10": {
                         "description": "Train Meta-Model Using 10% Dataset Slice",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
                             {"name": "--dataset", "help": "Dataset to use", "default": "cifar100", "type": "str"},
                             {"name": "--mode", "help": "Training mode", "default": "single", "type": "str"},
-                            {"name": "--resource-level", "help": "Resource level", "default": "0.1", "type": "float"},
+                            {"name": "--sample-size", "help": "Sample size", "default": "0.1", "type": "float"},
                             {"name": "--epochs", "help": "Number of epochs", "default": "100", "type": "int"},
                             {"name": "--batch-size", "help": "Batch size", "default": "128", "type": "int"}
                         ]
                     },
-                    "resource_20": {
+                    "sample_size_20": {
                         "description": "Train Meta-Model Using 20% Dataset Slice",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
                             {"name": "--dataset", "help": "Dataset to use", "default": "cifar100", "type": "str"},
                             {"name": "--mode", "help": "Training mode", "default": "single", "type": "str"},
-                            {"name": "--resource-level", "help": "Resource level", "default": "0.2", "type": "float"},
+                            {"name": "--sample-size", "help": "Sample size", "default": "0.2", "type": "float"},
                             {"name": "--epochs", "help": "Number of epochs", "default": "100", "type": "int"},
                             {"name": "--batch-size", "help": "Batch size", "default": "128", "type": "int"}
                         ]
                     },
-                    "resource_30": {
+                    "sample_size_30": {
                         "description": "Train Meta-Model Using 30% Dataset Slices",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
                             {"name": "--dataset", "help": "Dataset to use", "default": "cifar100", "type": "str", "preselected": True},
                             {"name": "--mode", "help": "Training mode", "default": "single", "type": "str", "preselected": True},
-                            {"name": "--resource-level", "help": "Resource level", "default": "0.3", "type": "float", "preselected": True},
+                            {"name": "--sample-size", "help": "Sample size", "default": "0.3", "type": "float", "preselected": True},
                             {"name": "--epochs", "help": "Number of epochs", "default": "100", "type": "int", "preselected": True},
                             {"name": "--batch-size", "help": "Batch size", "default": "128", "type": "int", "preselected": True}
                         ]
                     },
-                    "resource_40": {
+                    "sample_size_40": {
                         "description": "Train Meta-Model Using 40% Dataset Slices",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
                             {"name": "--dataset", "help": "Dataset to use", "default": "cifar100", "type": "str", "preselected": True},
                             {"name": "--mode", "help": "Training mode", "default": "single", "type": "str", "preselected": True},
-                            {"name": "--resource-level", "help": "Resource level", "default": "0.4", "type": "float", "preselected": True},
+                            {"name": "--sample-size", "help": "Sample size", "default": "0.4", "type": "float", "preselected": True},
                             {"name": "--epochs", "help": "Number of epochs", "default": "100", "type": "int", "preselected": True},
                             {"name": "--batch-size", "help": "Batch size", "default": "128", "type": "int", "preselected": True}
                         ]
@@ -227,7 +227,7 @@ EXAMPLES = {
                     {"name": "--log", "help": "Path to training log file", "type": "str"},
                     {"name": "--output", "help": "Path to output HTML report", "type": "str"},
                     {"name": "--dataset", "help": "Dataset type (cifar10 or cifar100)", "type": "str", "choices": ["cifar10", "cifar100"]},
-                    {"name": "--resource-level", "help": "Resource level (10, 20, 30, 40, or 100 for full dataset)", "type": "str", "choices": ["10", "20", "30", "40", "100"]},
+                    {"name": "--sample-size", "help": "Resource level (10, 20, 30, 40, or 100 for full dataset)", "type": "str", "choices": ["10", "20", "30", "40", "100"]},
                     {"name": "--title", "help": "Custom title for the report", "type": "str"}
                 ]
             },
@@ -248,9 +248,7 @@ EXAMPLES = {
             "setup_website": {
                 "description": "Set up the website to display results (requires sudo)",
                 "script": "src/deployment/setup_website.py",
-                "args": [
-                    {"name": "--web-dir", "help": "Web server directory", "default": "/var/www/html/loss.computer-wizard.com.au", "type": "str"}
-                ],
+                "args": [],
                 "sudo": True,
                 "use_mksite": True
             }
@@ -1029,20 +1027,9 @@ def run_example(example_info, args=None):
     # Special handling for website setup with mksite
     if item_id == 'setup_website' and example.get('use_mksite', False):
         print("\nUsing mksite command to set up the website...")
-        web_dir = "/var/www/html/loss.computer-wizard.com.au"  # Default web directory
         
-        # Check if web_dir is specified in args
-        if args:
-            for i, arg in enumerate(args):
-                if arg.startswith("--web-dir") and i + 1 < len(args):
-                    web_dir = args[i + 1]
-                    break
-                elif "--web-dir=" in arg:
-                    web_dir = arg.split("=")[1]
-                    break
-        
-        # Run mksite command
-        mksite_cmd = ['sudo', 'mksite', web_dir]
+        # Run mksite command - it will now use the configuration file
+        mksite_cmd = ['sudo', 'mksite']
         try:
             print(f"Running: {' '.join(mksite_cmd)}")
             subprocess.run(mksite_cmd, check=True)

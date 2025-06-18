@@ -148,69 +148,90 @@ $json_data = json_encode($data);
     <style>
         body {
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            color: #333;
+            background-color: #111;
+            color: #eee;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
-            background-color: white;
         }
         
         h1, h2, h3 {
-            color: #2c3e50;
+            color: #4cf;
         }
         
         .chart-container {
             position: relative;
             height: 300px;
             margin-bottom: 30px;
+            background-color: #222;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #333;
         }
         
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
         }
         
         .metric-card {
-            background-color: #f8f9fa;
+            background-color: #222;
             border-radius: 8px;
             padding: 15px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1px solid #333;
         }
         
         .metric-value {
             font-size: 24px;
             font-weight: bold;
-            color: #3498db;
+            color: #4cf;
+            margin-bottom: 5px;
         }
         
         .metric-label {
-            color: #7f8c8d;
             font-size: 14px;
+            color: #aaa;
+        }
+        
+        #rawLog {
+            background-color: #222;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 14px;
+            color: #ddd;
+            border: 1px solid #333;
         }
         
         .error {
-            background-color: #f8d7da;
-            color: #721c24;
+            background-color: #2a1a1a;
+            color: #f88;
             padding: 15px;
             border-radius: 5px;
             margin-bottom: 20px;
+            border-left: 4px solid #f88;
         }
         
         .refresh-button {
-            background-color: #3498db;
-            color: white;
+            background-color: #264c73;
+            color: #4cf;
             border: none;
             padding: 8px 15px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
-            margin-top: 10px;
+            border: 1px solid #4cf;
         }
         
         .refresh-button:hover {
-            background-color: #2980b9;
+            background-color: #1a3a5a;
         }
         
         .last-updated {

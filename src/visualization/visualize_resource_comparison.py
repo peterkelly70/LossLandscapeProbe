@@ -45,7 +45,7 @@ DATE_STR = datetime.now().strftime("%Y%m%d_%H%M%S")
 def load_results(dataset='cifar10'):
     """Load results from CSV files."""
     # Find the most recent CSV file for the dataset
-    pattern = os.path.join(RESULTS_DIR, f'{dataset}_resource_level_comparison_*.csv')
+    pattern = os.path.join(RESULTS_DIR, f'{dataset}_sample_size_comparison_*.csv')
     files = sorted(glob.glob(pattern))
     
     if not files:
@@ -63,8 +63,8 @@ def load_history(dataset='cifar10'):
     histories = {}
     
     # Find all JSON files for each resource level
-    for resource_level in [0.1, 0.2, 0.3, 0.4]:
-        pattern = os.path.join(RESULTS_DIR, f'{dataset}_resource_level_{resource_level}_*.json')
+    for sample_size in [0.1, 0.2, 0.3, 0.4]:
+        pattern = os.path.join(RESULTS_DIR, f'{dataset}_sample_size_{sample_size}_*.json')
         files = sorted(glob.glob(pattern))
         
         if files:
@@ -72,7 +72,7 @@ def load_history(dataset='cifar10'):
             latest_file = files[-1]
             with open(latest_file, 'r') as f:
                 data = json.load(f)
-                histories[resource_level] = data['history']
+                histories[sample_size] = data['history']
     
     return histories
 
@@ -80,8 +80,8 @@ def plot_accuracy_vs_time(df, dataset='cifar10'):
     """Plot test accuracy vs total time for different dataset percentages."""
     plt.figure(figsize=(12, 7))
     
-    # Convert resource_level to percentage for better readability
-    df['dataset_percentage'] = df['resource_level'] * 100
+    # Convert sample_size to percentage for better readability
+    df['dataset_percentage'] = df['sample_size'] * 100
     
     # Create scatter plot
     scatter = sns.scatterplot(
@@ -97,7 +97,7 @@ def plot_accuracy_vs_time(df, dataset='cifar10'):
     
     # Add labels for each point
     for i, row in df.iterrows():
-        percentage = int(row['resource_level'] * 100)
+        percentage = int(row['sample_size'] * 100)
         plt.annotate(
             f"{percentage}%",
             (row['total_time'], row['final_test_acc']),
@@ -143,7 +143,7 @@ def plot_meta_vs_training_time(df, dataset='cifar10'):
     plt.figure(figsize=(10, 6))
     
     # Create bar chart
-    df_sorted = df.sort_values('resource_level')
+    df_sorted = df.sort_values('sample_size')
     x = np.arange(len(df_sorted))
     width = 0.35
     
@@ -153,7 +153,7 @@ def plot_meta_vs_training_time(df, dataset='cifar10'):
     plt.xlabel('Resource Level')
     plt.ylabel('Time (seconds)')
     plt.title(f'{dataset.upper()} Meta-Model Time vs Training Time')
-    plt.xticks(x, [str(level) for level in df_sorted['resource_level']])
+    plt.xticks(x, [str(level) for level in df_sorted['sample_size']])
     plt.legend()
     plt.grid(True, axis='y', linestyle='--', alpha=0.7)
     
@@ -179,8 +179,8 @@ def plot_hyperparameter_comparison(df, dataset='cifar10'):
         print(f"No hyperparameter columns found for {dataset}")
         return None
         
-    # Convert resource_level to percentage for better readability
-    df['dataset_percentage'] = df['resource_level'] * 100
+    # Convert sample_size to percentage for better readability
+    df['dataset_percentage'] = df['sample_size'] * 100
     
     # Separate numeric and string hyperparameters
     numeric_cols = []
@@ -195,7 +195,7 @@ def plot_hyperparameter_comparison(df, dataset='cifar10'):
     # Create a long-format dataframe for numeric parameters
     numeric_data = []
     for i, row in df.iterrows():
-        percentage = int(row['resource_level'] * 100)
+        percentage = int(row['sample_size'] * 100)
         for col in numeric_cols:
             param_name = col.replace('best_', '')
             numeric_data.append({
@@ -207,7 +207,7 @@ def plot_hyperparameter_comparison(df, dataset='cifar10'):
     # Create a separate dataframe for string parameters
     string_data = []
     for i, row in df.iterrows():
-        percentage = int(row['resource_level'] * 100)
+        percentage = int(row['sample_size'] * 100)
         for col in string_cols:
             param_name = col.replace('best_', '')
             string_data.append({
@@ -311,8 +311,8 @@ def plot_training_curves(histories, dataset='cifar10'):
     
     # Plot training loss
     plt.subplot(2, 1, 1)
-    for resource_level, history in histories.items():
-        percentage = int(resource_level * 100)
+    for sample_size, history in histories.items():
+        percentage = int(sample_size * 100)
         plt.plot(history['train_loss'], label=f'{percentage}% Dataset')
     plt.title(f'{dataset.upper()} Training Loss by Dataset Percentage', fontsize=14)
     plt.xlabel('Epoch', fontsize=12)
@@ -322,8 +322,8 @@ def plot_training_curves(histories, dataset='cifar10'):
     
     # Plot test accuracy
     plt.subplot(2, 1, 2)
-    for resource_level, history in histories.items():
-        percentage = int(resource_level * 100)
+    for sample_size, history in histories.items():
+        percentage = int(sample_size * 100)
         plt.plot(history['test_acc'], label=f'{percentage}% Dataset', linewidth=2)
     plt.title(f'{dataset.upper()} Test Accuracy by Dataset Percentage', fontsize=14)
     plt.xlabel('Epoch', fontsize=12)
@@ -349,8 +349,8 @@ def plot_training_curves(histories, dataset='cifar10'):
 
 def create_summary_table(df, dataset='cifar10'):
     """Create a summary table with key metrics for different dataset percentages."""
-    # Convert resource_level to percentage for better readability
-    df['dataset_percentage'] = df['resource_level'] * 100
+    # Convert sample_size to percentage for better readability
+    df['dataset_percentage'] = df['sample_size'] * 100
     
     # Calculate efficiency metrics
     df['accuracy_per_second'] = df['final_test_acc'] / df['total_time']

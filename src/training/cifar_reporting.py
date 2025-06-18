@@ -50,18 +50,18 @@ REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports'
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
 
-def generate_test_report(config, dataset_name, resource_level, output_path=None):
+def generate_test_report(config, dataset_name, sample_size, output_path=None):
     """Generate a test report for the given configuration.
     
     Args:
         config: Dictionary with hyperparameters
         dataset_name: 'cifar10' or 'cifar100'
-        resource_level: Fraction of dataset used for training
+        sample_size: Fraction of dataset used for training
         
     Returns:
         Path to the generated report
     """
-    logger.info(f"Generating test report for {dataset_name} with resource level {resource_level}")
+    logger.info(f"Generating test report for {dataset_name} with sample size {sample_size}")
     
     # Determine the number of channels and classes
     num_channels = config.get('num_channels', 32)
@@ -73,7 +73,7 @@ def generate_test_report(config, dataset_name, resource_level, output_path=None)
         'generate_test_report.py',
         '--num_channels', str(num_channels),
         '--dataset', dataset_name,
-        '--resource_level', str(resource_level),
+        '--sample_size', str(sample_size),
         '--num_classes', str(num_classes),
         '--num_samples', '200',  # Number of test samples to show in the report
         '--include_confusion_matrix', 'True',  # Include confusion matrix visualization
@@ -94,30 +94,30 @@ def generate_test_report(config, dataset_name, resource_level, output_path=None)
     subprocess.run(cmd, check=True)
     
     # The report path follows the convention used in generate_test_report.py
-    report_path = f"reports/{dataset_name}_{int(resource_level*100)}pct_report.html"
+    report_path = f"reports/{dataset_name}_{int(sample_size*100)}pct_report.html"
     logger.info(f"Test report generated at {report_path}")
     
     return report_path
 
 
-def generate_meta_model_report(dataset_name, resource_level, output_path=None):
+def generate_meta_model_report(dataset_name, sample_size, output_path=None):
     """Generate a report visualizing the meta-model training progress.
     
     Args:
         dataset_name: 'cifar10' or 'cifar100'
-        resource_level: Fraction of dataset used for training
+        sample_size: Fraction of dataset used for training
         
     Returns:
         Path to the generated report
     """
-    logger.info(f"Generating meta-model training report for {dataset_name} with resource level {resource_level}")
+    logger.info(f"Generating meta-model training report for {dataset_name} with sample size {sample_size}")
     
     # Construct the command to run the meta-model report generator
     cmd = [
         sys.executable,
         'generate_meta_model_report.py',
         '--dataset', dataset_name,
-        '--resource_level', str(resource_level)
+        '--sample_size', str(sample_size)
     ]
     
     # Add output path if provided
@@ -130,7 +130,7 @@ def generate_meta_model_report(dataset_name, resource_level, output_path=None):
         subprocess.run(cmd, check=True)
         
         # The report path follows the convention used in the meta-model report generator
-        report_path = f"reports/{dataset_name}_{int(resource_level*100)}pct_meta_model_report.html"
+        report_path = f"reports/{dataset_name}_{int(sample_size*100)}pct_meta_model_report.html"
         logger.info(f"Meta-model training report generated at {report_path}")
         
         return report_path
@@ -139,7 +139,7 @@ def generate_meta_model_report(dataset_name, resource_level, output_path=None):
         return None
 
 
-def visualize_training_progress(dataset_name, resource_level, output_path=None):
+def visualize_training_progress(dataset_name, sample_size, output_path=None):
     """Generate a visualization of the training progress.
     
     This function saves training data in a format compatible with the PHP-based
@@ -148,17 +148,17 @@ def visualize_training_progress(dataset_name, resource_level, output_path=None):
     
     Args:
         dataset_name: 'cifar10' or 'cifar100'
-        resource_level: Fraction of dataset used for training
+        sample_size: Fraction of dataset used for training
         
     Returns:
         Path to the generated data file
     """
-    logger.info(f"Preparing training progress data for {dataset_name} with resource level {resource_level}")
+    logger.info(f"Preparing training progress data for {dataset_name} with sample size {sample_size}")
     
     # Determine the model type and log file path based on dataset and resource level
     model_type = f"cifa{10 if dataset_name == 'cifar10' else 100}"
-    if resource_level < 1.0:
-        model_type = f"{model_type}_{int(resource_level*100)}"
+    if sample_size < 1.0:
+        model_type = f"{model_type}_{int(sample_size*100)}"
     
     # The log file is in the model-specific reports directory
     log_file = f"{model_type}_training_log.txt"
@@ -183,13 +183,13 @@ def visualize_training_progress(dataset_name, resource_level, output_path=None):
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
     else:
         # Use the default path
-        data_file = os.path.join(reports_dir, f"{dataset_name}_{int(resource_level*100)}pct_training_data.json")
+        data_file = os.path.join(reports_dir, f"{dataset_name}_{int(sample_size*100)}pct_training_data.json")
     
     # Create a data structure with metadata
     data = {
         'log_file': log_path,
         'dataset': dataset_name,
-        'resource_level': resource_level,
+        'sample_size': sample_size,
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     
@@ -208,7 +208,7 @@ def visualize_training_progress(dataset_name, resource_level, output_path=None):
                 sys.executable,
                 script_name,
                 '--log', log_path,
-                '--output', os.path.join(reports_dir, f"{dataset_name}_{int(resource_level*100)}pct_progress.html")
+                '--output', os.path.join(reports_dir, f"{dataset_name}_{int(sample_size*100)}pct_progress.html")
             ]
             
             logger.info(f"Running command: {' '.join(cmd)}")
@@ -245,18 +245,18 @@ def update_website():
     logger.info("Website updated successfully")
 
 
-def generate_resource_comparison_report(dataset_name, results=None, resource_level=None, output_path=None):
-    """Generate a report comparing results from different resource levels.
+def generate_sample_size_comparison_report(dataset_name, results=None, sample_size=None, output_path=None):
+    """Generate a report comparing results from different sample sizes.
     
     This function supports two modes:
     1. If results is provided: Generate a report from the provided results dictionary
     2. If results is None: Load existing results from previous runs and add the current
-       resource_level results to the comparison
+       sample_size results to the comparison
     
     Args:
         dataset_name: 'cifar10' or 'cifar100'
         results: Dictionary with results for each resource level (optional)
-        resource_level: Current resource level being added (optional)
+        sample_size: Current sample size being added (optional)
         
     Returns:
         Path to the comparison report
@@ -271,8 +271,8 @@ def generate_resource_comparison_report(dataset_name, results=None, resource_lev
     
     # If results is None, we're adding to an existing comparison
     if results is None:
-        if resource_level is None:
-            raise ValueError("Either results or resource_level must be provided")
+        if sample_size is None:
+            raise ValueError("Either results or sample_size must be provided")
         
         # Load existing comparison data if available
         if os.path.exists(persistent_data_path):
@@ -290,18 +290,18 @@ def generate_resource_comparison_report(dataset_name, results=None, resource_lev
         
         # Add the current resource level results
         # First, find the result file for this resource level
-        resource_level_str = str(resource_level)
-        result_file = os.path.join(REPORTS_DIR, f"{dataset_name}_{int(float(resource_level_str)*100)}pct_result.json")
+        sample_size_str = str(sample_size)
+        result_file = os.path.join(REPORTS_DIR, f"{dataset_name}_{int(float(sample_size_str)*100)}pct_result.json")
         
         if os.path.exists(result_file):
             with open(result_file, 'r') as f:
                 level_result = json.load(f)
                 
             # Add to the comparison results
-            results[resource_level_str] = level_result
-            logger.info(f"Added resource level {resource_level_str} to comparison")
+            results[sample_size_str] = level_result
+            logger.info(f"Added sample size {sample_size_str} to comparison")
         else:
-            logger.warning(f"No result file found for {dataset_name} at resource level {resource_level_str}")
+            logger.warning(f"No result file found for {dataset_name} at sample size {sample_size_str}")
             return None
     
     # Update the comparison data
@@ -324,10 +324,11 @@ def generate_resource_comparison_report(dataset_name, results=None, resource_lev
     with open(comparison_data_path, 'w') as f:
         json.dump(comparison_data, f, indent=4)
     
-    # Run the comparison report generator
+    # Prepare the command to run the sample size comparison report generator
     cmd = [
         sys.executable,
-        'generate_resource_comparison_report.py',
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                    'generate_sample_size_comparison_report.py'),
         '--dataset', dataset_name,
         '--data_file', comparison_data_path
     ]
@@ -342,10 +343,10 @@ def generate_resource_comparison_report(dataset_name, results=None, resource_lev
     # Determine the report path
     if output_path:
         report_path = output_path
-        logger.info(f"Resource comparison report generated at {report_path}")
+        logger.info(f"Sample size comparison report generated at {report_path}")
     else:
         # Use the default path following the convention used in the report generator
-        report_path = f"reports/{dataset_name}_resource_comparison_{timestamp}.html"
-        logger.info(f"Resource comparison report generated at {report_path}")
+        report_path = f"reports/{dataset_name}_sample_size_comparison_{timestamp}.html"
+        logger.info(f"Sample size comparison report generated at {report_path}")
     
     return report_path
