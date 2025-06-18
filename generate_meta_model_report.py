@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+"""
+Generate Meta-Model Training Progress Report
+===========================================
+
+This script generates an HTML report visualizing the meta-model training progress,
+showing the hyperparameter configurations being tested, their performance,
+and the convergence of the meta-model over iterations.
+"""
+
+import os
+import sys
+import json
+import argparse
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime
+import pandas as pd
+import seaborn as sns
+
+# Add the parent directory to the path so we can import the LLP package
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from llp.utils.logging_utils import setup_logger
+import logging
+
+# Setup logging
+setup_logger()
+logger = logging.getLogger(__name__)
+
+# Constants
+REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
+
+def parse_meta_model_log(dataset_name, resource_level):
+    """Parse the meta-model training log to extract configurations and performance.
+    
+    Args:
+        dataset_name: 'cifar10' or 'cifar100'
+        resource_level: Resource level (e.g., 0.1 for 10%)
+        
+    Returns:
+        Dictionary with parsed data
+    """
+    # Determine the log file path
+    log_file = f"{dataset_name}_meta_model_{int(float(resource_level)*100)}pct.log"
+    log_path = os.path.join('logs', log_file)
+    
+    if not os.path.exists(log_path):
+        logger.warning(f"Log file {log_path} not found")
+        return None
+    
+    # Parse the log file
+    iterations = []
+    configs = []
+    performances = []
+    
+    current_iteration = None
+    current_configs = []
+    current_performances = []
+    
+    with open(log_path, 'r') as f:
+        for line in f:
+            # Look for iteration markers
+            if "Starting meta-model iteration" in line:
+                # Save previous iteration data if exists
+                if current_iteration is not None:
+                    iterations.append(current_iteration)
+                    configs.append(current_configs)
+                    performances.append(current_performances)
+                
+                # Extract iteration number
+                parts = line.split("iteration")
+                if len(parts) > 1:
+                    try:
+                        current_iteration = int(parts[1].strip().split()[0])
+                        current_configs = []
+                        current_performances = []
+                    except ValueError:
+                        logger.warning(f"Could not parse iteration number from: {line}")
+            
+            # Look for configuration evaluations
+            elif "Evaluating configuration" in line and ":" in line:
+                config_part = line.split("configuration")[1].split(":")[0].strip()
+                try:
+                    config_idx = int(config_part)
+                except ValueError:
+                    continue
+                
+                # Try to extract the configuration details
+                if "{" in line and "}" in line:
+                    config_str = line.split("{")[1].split("}")[0]
+                    config_str = "{" + config_str + "}"
+                    try:
+                        config = eval(config_str)
+                        current_configs.append(config)
+                    except:
+                        logger.warning(f"Could not parse configuration from: {line}")
+            
+            # Look for performance results
+            elif "Configuration" in line and "achieved validation accuracy" in line:
+                parts = line.split("achieved validation accuracy")
+                if len(parts) > 1:
+                    try:
+                        accuracy = float(parts[1].strip().split()[0])
+                        current_performances.append(accuracy)
+                    except ValueError:
+                        logger.warning(f"Could not parse accuracy from: {line}")
+    
+    # Save the last iteration
+    if current_iteration is not None:
+        iterations.append(current_iteration)
+        configs.append(current_configs)
+        performances.append(current_performances)
+    
+    return {
+        'iterations': iterations,
+        'configs': configs,
+        'performances': performances
+    }
+
+
+def generate_meta_model_plots(data, output_dir):
+    """Generate plots visualizing the meta-model training progress.
+    
+    Args:
+        data: Dictionary with parsed meta-model data
+        output_dir: Directory to save the plots
+        
+    Returns:
+        Dictionary mapping plot types to their file paths
+    """
+    if data is None or not data['iterations']:
+        logger.warning("No meta-model data to plot")
+        return {}
+    
+    os.makedirs(output_dir, exist_ok=True)
+    plot_files = {}
+    
+    # Extract data
+    iterations = data['iterations']
+    all_configs = data['configs']
+    all_performances = data['performances']
+    
+    # Plot 1: Best performance per iteration
+    plt.figure(figsize=(10, 6))
+    best_per_iteration = [max(perfs) if perfs else 0 for perfs in all_performances]
+    plt.plot(iterations, best_per_iteration, 'o-', linewidth=2, markersize=8)
+    plt.xlabel('Iteration', fontsize=12)
+    plt.ylabel('Best Validation Accuracy', fontsize=12)
+    plt.title('Meta-Model Best Performance per Iteration', fontsize=14)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    # Add value labels
+    for i, acc in enumerate(best_per_iteration):
+        plt.annotate(f'{acc:.3f}', 
+                    (iterations[i], acc),
+                    textcoords="offset points", 
+                    xytext=(0, 10), 
+                    ha='center')
+    
+    best_plot_path = os.path.join(output_dir, 'meta_model_best_per_iteration.png')
+    plt.savefig(best_plot_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    plot_files['best_per_iteration'] = best_plot_path
+    
+    # Plot 2: Performance distribution per iteration
+    plt.figure(figsize=(12, 7))
+    
+    # Prepare data for box plot
+    box_data = []
+    for i, perfs in enumerate(all_performances):
+        if perfs:  # Only add if there are performances
+            for p in perfs:
+                box_data.append((iterations[i], p))
+    
+    if box_data:
+        df = pd.DataFrame(box_data, columns=['Iteration', 'Validation Accuracy'])
+        sns.boxplot(x='Iteration', y='Validation Accuracy', data=df)
+        plt.title('Meta-Model Performance Distribution per Iteration', fontsize=14)
+        plt.grid(True, linestyle='--', alpha=0.7)
+        
+        dist_plot_path = os.path.join(output_dir, 'meta_model_performance_distribution.png')
+        plt.savefig(dist_plot_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        plot_files['performance_distribution'] = dist_plot_path
+    
+    # Plot 3: Hyperparameter importance (if we have enough data)
+    all_flat_configs = []
+    all_flat_performances = []
+    
+    for iter_configs, iter_perfs in zip(all_configs, all_performances):
+        if len(iter_configs) == len(iter_perfs):
+            for config, perf in zip(iter_configs, iter_perfs):
+                flat_config = {}
+                for key, value in config.items():
+                    if isinstance(value, (int, float)):
+                        flat_config[key] = value
+                    else:
+                        flat_config[key] = str(value)
+                all_flat_configs.append(flat_config)
+                all_flat_performances.append(perf)
+    
+    if all_flat_configs:
+        # Convert to DataFrame
+        try:
+            df = pd.DataFrame(all_flat_configs)
+            df['performance'] = all_flat_performances
+            
+            # Calculate correlations with performance
+            correlations = {}
+            for col in df.columns:
+                if col != 'performance':
+                    try:
+                        if df[col].dtype in [np.float64, np.int64]:
+                            correlations[col] = df[col].corr(df['performance'])
+                        else:
+                            # For categorical variables, use mean performance per category
+                            group_means = df.groupby(col)['performance'].mean()
+                            # Calculate variance of means as a measure of importance
+                            correlations[col] = group_means.var()
+                    except:
+                        pass
+            
+            if correlations:
+                # Plot correlations/importance
+                plt.figure(figsize=(10, 6))
+                params = list(correlations.keys())
+                values = list(correlations.values())
+                
+                # Sort by absolute value
+                sorted_indices = np.argsort([abs(v) for v in values])[::-1]
+                params = [params[i] for i in sorted_indices]
+                values = [values[i] for i in sorted_indices]
+                
+                plt.bar(params, values)
+                plt.xlabel('Hyperparameter', fontsize=12)
+                plt.ylabel('Correlation with Performance', fontsize=12)
+                plt.title('Hyperparameter Importance', fontsize=14)
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+                
+                importance_plot_path = os.path.join(output_dir, 'meta_model_hyperparameter_importance.png')
+                plt.savefig(importance_plot_path, dpi=300, bbox_inches='tight')
+                plt.close()
+                plot_files['hyperparameter_importance'] = importance_plot_path
+        except Exception as e:
+            logger.warning(f"Could not generate hyperparameter importance plot: {e}")
+    
+    return plot_files
+
+
+def generate_html_report(dataset_name, resource_level, data, plot_files, timestamp, output_path=None):
+    """Generate an HTML report visualizing the meta-model training progress.
+    
+    Args:
+        dataset_name: 'cifar10' or 'cifar100'
+        resource_level: Resource level (e.g., 0.1 for 10%)
+        data: Dictionary with parsed meta-model data
+        plot_files: Dictionary with paths to the generated plots
+        timestamp: Timestamp for the report
+        
+    Returns:
+        Path to the generated HTML report
+    """
+    # Format the dataset name for display
+    dataset_display = "CIFAR-10" if dataset_name.lower() == "cifar10" else "CIFAR-100"
+    resource_percent = int(float(resource_level) * 100)
+    
+    # Build the HTML report
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{dataset_display} Meta-Model Training Progress ({resource_percent}%)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {{
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }}
+        .header {{
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }}
+        .plot-container {{
+            margin-bottom: 40px;
+        }}
+        .table-container {{
+            margin-bottom: 40px;
+        }}
+        .footer {{
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #666;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{dataset_display} Meta-Model Training Progress ({resource_percent}%)</h1>
+            <p class="lead">Visualizing the meta-model hyperparameter optimization process</p>
+            <p>Generated on: {timestamp}</p>
+        </div>
+"""
+    
+    # Add plots if available
+    if 'best_per_iteration' in plot_files:
+        html += f"""
+        <div class="plot-container">
+            <div class="row">
+                <div class="col-md-12">
+                    <h3>Best Performance per Iteration</h3>
+                    <img src="{os.path.basename(plot_files['best_per_iteration'])}" alt="Best Performance per Iteration" class="img-fluid">
+                    <p class="mt-2">This plot shows how the best validation accuracy improves across meta-model iterations.</p>
+                </div>
+            </div>
+        </div>
+"""
+    
+    if 'performance_distribution' in plot_files:
+        html += f"""
+        <div class="plot-container">
+            <div class="row">
+                <div class="col-md-12">
+                    <h3>Performance Distribution per Iteration</h3>
+                    <img src="{os.path.basename(plot_files['performance_distribution'])}" alt="Performance Distribution" class="img-fluid">
+                    <p class="mt-2">This plot shows the distribution of validation accuracies for different configurations in each iteration.</p>
+                </div>
+            </div>
+        </div>
+"""
+    
+    if 'hyperparameter_importance' in plot_files:
+        html += f"""
+        <div class="plot-container">
+            <div class="row">
+                <div class="col-md-12">
+                    <h3>Hyperparameter Importance</h3>
+                    <img src="{os.path.basename(plot_files['hyperparameter_importance'])}" alt="Hyperparameter Importance" class="img-fluid">
+                    <p class="mt-2">This plot shows the correlation between each hyperparameter and the validation accuracy.</p>
+                </div>
+            </div>
+        </div>
+"""
+    
+    # Add configuration table if data is available
+    if data and data['iterations']:
+        html += """
+        <div class="table-container">
+            <div class="row">
+                <div class="col-12">
+                    <h2>Best Configurations per Iteration</h2>
+                    <table class="table table-bordered table-hover">
+                        <thead>
+                            <tr>
+                                <th>Iteration</th>
+                                <th>Best Configuration</th>
+                                <th>Validation Accuracy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+"""
+        
+        for i, (iteration, configs, perfs) in enumerate(zip(data['iterations'], data['configs'], data['performances'])):
+            if perfs:  # Only add if there are performances
+                best_idx = np.argmax(perfs)
+                best_perf = perfs[best_idx]
+                best_config = configs[best_idx] if best_idx < len(configs) else "N/A"
+                
+                html += f"""
+                            <tr>
+                                <td>{iteration}</td>
+                                <td><pre>{json.dumps(best_config, indent=2)}</pre></td>
+                                <td>{best_perf:.4f}</td>
+                            </tr>
+"""
+        
+        html += """
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+"""
+    
+    # Close the HTML
+    html += """
+        <div class="footer">
+            <p>Generated by LossLandscapeProbe - <a href="https://loss.computer-wizard.com.au/">https://loss.computer-wizard.com.au/</a></p>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+"""
+    
+    # Save the HTML report
+    if output_path:
+        report_path = output_path
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    else:
+        report_path = os.path.join(REPORTS_DIR, f"{dataset_name}_{resource_percent}pct_meta_model_report.html")
+    
+    with open(report_path, 'w') as f:
+        f.write(html)
+    
+    logger.info(f"Meta-model report generated at {report_path}")
+    return report_path
+
+
+def main():
+    """Main entry point for the script."""
+    parser = argparse.ArgumentParser(description='Generate meta-model training progress report')
+    parser.add_argument('--dataset', type=str, choices=['cifar10', 'cifar100'], required=True,
+                        help='Dataset name (cifar10 or cifar100)')
+    parser.add_argument('--resource_level', type=float, required=True,
+                        help='Resource level (e.g., 0.1 for 10%)')
+    parser.add_argument('--output_path', type=str, default=None,
+                        help='Custom output path for the HTML report')
+    
+    args = parser.parse_args()
+    
+    # Parse the meta-model log
+    data = parse_meta_model_log(args.dataset, args.resource_level)
+    
+    if data is None or not data['iterations']:
+        logger.warning(f"No meta-model data found for {args.dataset} at resource level {args.resource_level}")
+        return None
+    
+    # Create a timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    # Create a directory for the plots
+    resource_percent = int(args.resource_level * 100)
+    plots_dir = os.path.join(REPORTS_DIR, f"{args.dataset}_{resource_percent}pct_meta_model_plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    
+    # Generate the plots
+    plot_files = generate_meta_model_plots(data, plots_dir)
+    
+    # Generate the HTML report
+    report_path = generate_html_report(args.dataset, args.resource_level, data, plot_files, timestamp, output_path=args.output_path)
+    
+    logger.info(f"Meta-model report generated at {report_path}")
+    return report_path
+
+
+if __name__ == '__main__':
+    main()

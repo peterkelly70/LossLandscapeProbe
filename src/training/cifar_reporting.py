@@ -1,0 +1,351 @@
+#!/usr/bin/env python3
+"""
+CIFAR Reporting Module
+=====================
+
+This module handles the generation of reports, visualizations, and website updates
+for CIFAR-10 and CIFAR-100 training. It works with the logs and results produced
+by the core training module to create comprehensive reports.
+
+Functions:
+- Generate test reports with sample predictions
+- Create training progress visualizations
+- Update the web-based reporting system
+"""
+
+import os
+import sys
+import json
+import logging
+import subprocess
+from datetime import datetime
+
+# Add the project root directory to the path so we can import the LLP package
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# Also add the src directory to the path for relative imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Define setup_logger function locally since llp.utils.logging_utils doesn't exist
+def setup_logger():
+    """Set up a basic logger for the script"""
+    log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    
+    # Remove existing handlers to prevent duplicate messages
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(log_formatter)
+    root_logger.addHandler(console_handler)
+
+# Setup logging
+setup_logger()
+logger = logging.getLogger(__name__)
+
+# Constants
+REPORTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports')
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
+
+def generate_test_report(config, dataset_name, resource_level, output_path=None):
+    """Generate a test report for the given configuration.
+    
+    Args:
+        config: Dictionary with hyperparameters
+        dataset_name: 'cifar10' or 'cifar100'
+        resource_level: Fraction of dataset used for training
+        
+    Returns:
+        Path to the generated report
+    """
+    logger.info(f"Generating test report for {dataset_name} with resource level {resource_level}")
+    
+    # Determine the number of channels and classes
+    num_channels = config.get('num_channels', 32)
+    num_classes = 10 if dataset_name.lower() == 'cifar10' else 100
+    
+    # Construct the command to run the test report generator
+    cmd = [
+        sys.executable,
+        'generate_test_report.py',
+        '--num_channels', str(num_channels),
+        '--dataset', dataset_name,
+        '--resource_level', str(resource_level),
+        '--num_classes', str(num_classes),
+        '--num_samples', '200',  # Number of test samples to show in the report
+        '--include_confusion_matrix', 'True',  # Include confusion matrix visualization
+        '--include_class_metrics', 'True'      # Include per-class metrics
+    ]
+    
+    # Add output path if provided
+    if output_path:
+        cmd.extend(['--output_path', output_path])
+    
+    # Add other hyperparameters from the config
+    for key, value in config.items():
+        if key not in ['num_channels']:  # Already added above
+            cmd.extend([f'--{key}', str(value)])
+    
+    # Run the command
+    logger.info(f"Running command: {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
+    
+    # The report path follows the convention used in generate_test_report.py
+    report_path = f"reports/{dataset_name}_{int(resource_level*100)}pct_report.html"
+    logger.info(f"Test report generated at {report_path}")
+    
+    return report_path
+
+
+def generate_meta_model_report(dataset_name, resource_level, output_path=None):
+    """Generate a report visualizing the meta-model training progress.
+    
+    Args:
+        dataset_name: 'cifar10' or 'cifar100'
+        resource_level: Fraction of dataset used for training
+        
+    Returns:
+        Path to the generated report
+    """
+    logger.info(f"Generating meta-model training report for {dataset_name} with resource level {resource_level}")
+    
+    # Construct the command to run the meta-model report generator
+    cmd = [
+        sys.executable,
+        'generate_meta_model_report.py',
+        '--dataset', dataset_name,
+        '--resource_level', str(resource_level)
+    ]
+    
+    # Add output path if provided
+    if output_path:
+        cmd.extend(['--output_path', output_path])
+    
+    # Run the command
+    logger.info(f"Running command: {' '.join(cmd)}")
+    try:
+        subprocess.run(cmd, check=True)
+        
+        # The report path follows the convention used in the meta-model report generator
+        report_path = f"reports/{dataset_name}_{int(resource_level*100)}pct_meta_model_report.html"
+        logger.info(f"Meta-model training report generated at {report_path}")
+        
+        return report_path
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to generate meta-model report: {e}")
+        return None
+
+
+def visualize_training_progress(dataset_name, resource_level, output_path=None):
+    """Generate a visualization of the training progress.
+    
+    This function saves training data in a format compatible with the PHP-based
+    real-time reporting system. The actual visualization is generated on-demand
+    by the PHP scripts when the website is accessed.
+    
+    Args:
+        dataset_name: 'cifar10' or 'cifar100'
+        resource_level: Fraction of dataset used for training
+        
+    Returns:
+        Path to the generated data file
+    """
+    logger.info(f"Preparing training progress data for {dataset_name} with resource level {resource_level}")
+    
+    # Determine the model type and log file path based on dataset and resource level
+    model_type = f"cifa{10 if dataset_name == 'cifar10' else 100}"
+    if resource_level < 1.0:
+        model_type = f"{model_type}_{int(resource_level*100)}"
+    
+    # The log file is in the model-specific reports directory
+    log_file = f"{model_type}_training_log.txt"
+    log_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
+                          "reports", model_type, log_file)
+    
+    # Check if log file exists
+    if not os.path.exists(log_path):
+        logger.warning(f"Log file {log_path} not found")
+        return None
+    
+    # Ensure reports directory exists
+    reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'reports')
+    os.makedirs(reports_dir, exist_ok=True)
+    
+    # Save a reference file that points to the log file
+    # This file will be used by the PHP scripts to locate the log file
+    if output_path:
+        # Use the provided output path
+        data_file = output_path
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    else:
+        # Use the default path
+        data_file = os.path.join(reports_dir, f"{dataset_name}_{int(resource_level*100)}pct_training_data.json")
+    
+    # Create a data structure with metadata
+    data = {
+        'log_file': log_path,
+        'dataset': dataset_name,
+        'resource_level': resource_level,
+        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    # Save the data
+    with open(data_file, 'w') as f:
+        json.dump(data, f, indent=4)
+    
+    logger.info(f"Training progress data prepared at {data_file}")
+    
+    # For compatibility with existing code, also try to generate a static report
+    # if the visualization script is available
+    script_name = f"src/visualization/visualize_{dataset_name}_progress.py"
+    if os.path.exists(script_name):
+        try:
+            cmd = [
+                sys.executable,
+                script_name,
+                '--log', log_path,
+                '--output', os.path.join(reports_dir, f"{dataset_name}_{int(resource_level*100)}pct_progress.html")
+            ]
+            
+            logger.info(f"Running command: {' '.join(cmd)}")
+            subprocess.run(cmd, check=True)
+            logger.info(f"Static training progress report generated")
+        except subprocess.CalledProcessError as e:
+            logger.warning(f"Failed to generate static training progress report: {e}")
+    
+    return data_file
+
+
+def update_website():
+    """Update the website with the latest reports.
+    
+    This function is kept for compatibility but should be called separately
+    through the deployment menu or directly via mksite, not automatically
+    during training.
+    
+    Returns:
+        None
+    """
+    logger.info("Updating website with latest reports")
+    
+    # Construct the command to run the website setup script
+    cmd = [
+        sys.executable,
+        'setup_website.py'
+    ]
+    
+    # Run the command
+    logger.info(f"Running command: {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
+    
+    logger.info("Website updated successfully")
+
+
+def generate_resource_comparison_report(dataset_name, results=None, resource_level=None, output_path=None):
+    """Generate a report comparing results from different resource levels.
+    
+    This function supports two modes:
+    1. If results is provided: Generate a report from the provided results dictionary
+    2. If results is None: Load existing results from previous runs and add the current
+       resource_level results to the comparison
+    
+    Args:
+        dataset_name: 'cifar10' or 'cifar100'
+        results: Dictionary with results for each resource level (optional)
+        resource_level: Current resource level being added (optional)
+        
+    Returns:
+        Path to the comparison report
+    """
+    logger.info(f"Generating resource comparison report for {dataset_name}")
+    
+    # Create a timestamp for the report
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Path for the persistent comparison data
+    persistent_data_path = os.path.join(REPORTS_DIR, f"{dataset_name}_comparison_data.json")
+    
+    # If results is None, we're adding to an existing comparison
+    if results is None:
+        if resource_level is None:
+            raise ValueError("Either results or resource_level must be provided")
+        
+        # Load existing comparison data if available
+        if os.path.exists(persistent_data_path):
+            with open(persistent_data_path, 'r') as f:
+                comparison_data = json.load(f)
+                results = comparison_data.get('results', {})
+        else:
+            # Initialize new comparison data
+            results = {}
+            comparison_data = {
+                'dataset': dataset_name,
+                'created': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                'results': results
+            }
+        
+        # Add the current resource level results
+        # First, find the result file for this resource level
+        resource_level_str = str(resource_level)
+        result_file = os.path.join(REPORTS_DIR, f"{dataset_name}_{int(float(resource_level_str)*100)}pct_result.json")
+        
+        if os.path.exists(result_file):
+            with open(result_file, 'r') as f:
+                level_result = json.load(f)
+                
+            # Add to the comparison results
+            results[resource_level_str] = level_result
+            logger.info(f"Added resource level {resource_level_str} to comparison")
+        else:
+            logger.warning(f"No result file found for {dataset_name} at resource level {resource_level_str}")
+            return None
+    
+    # Update the comparison data
+    comparison_data = {
+        'dataset': dataset_name,
+        'updated': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'timestamp': timestamp,
+        'results': results
+    }
+    
+    # Save the persistent comparison data
+    with open(persistent_data_path, 'w') as f:
+        # Convert resource levels from float to string for JSON serialization
+        serializable_results = {str(k): v for k, v in results.items()}
+        comparison_data['results'] = serializable_results
+        json.dump(comparison_data, f, indent=4)
+    
+    # Create a timestamped copy for the report generator
+    comparison_data_path = os.path.join(REPORTS_DIR, f"{dataset_name}_comparison_data_{timestamp}.json")
+    with open(comparison_data_path, 'w') as f:
+        json.dump(comparison_data, f, indent=4)
+    
+    # Run the comparison report generator
+    cmd = [
+        sys.executable,
+        'generate_resource_comparison_report.py',
+        '--dataset', dataset_name,
+        '--data_file', comparison_data_path
+    ]
+    
+    # Add output path if provided
+    if output_path:
+        cmd.extend(['--output_path', output_path])
+    
+    logger.info(f"Running command: {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
+    
+    # Determine the report path
+    if output_path:
+        report_path = output_path
+        logger.info(f"Resource comparison report generated at {report_path}")
+    else:
+        # Use the default path following the convention used in the report generator
+        report_path = f"reports/{dataset_name}_resource_comparison_{timestamp}.html"
+        logger.info(f"Resource comparison report generated at {report_path}")
+    
+    return report_path

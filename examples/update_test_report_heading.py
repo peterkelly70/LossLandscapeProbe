@@ -13,8 +13,8 @@ from pathlib import Path
 
 def update_test_report_heading(web_dir):
     """Update the heading in all test report HTML files."""
-    # Find all test report HTML files
-    report_files = glob.glob(os.path.join(web_dir, 'cifar10_test_report_*.html'))
+    # Find all test report HTML files (with or without timestamp)
+    report_files = glob.glob(os.path.join(web_dir, 'cifar10_test_report*.html'))
     
     if not report_files:
         print("No test report files found in", web_dir)

@@ -70,6 +70,7 @@ class TwoTierProbing:
         self.alpha = alpha
         
         self.results = []
+        self.epoch_metrics = []  # Track metrics for each epoch
     
     def train_and_evaluate(
         self,
@@ -113,8 +114,15 @@ class TwoTierProbing:
         # Training
         start_time = time.time()
         model.train()
+        self.epoch_metrics = []  # Reset epoch metrics for this training run
         
         for epoch in range(epochs):
+            epoch_start = time.time()
+            running_loss = 0.0
+            correct = 0
+            total = 0
+            
+            # Training loop
             for inputs, targets in train_loader:
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 
@@ -123,6 +131,51 @@ class TwoTierProbing:
                 loss = self.criterion(outputs, targets)
                 loss.backward()
                 optimizer.step()
+                
+                running_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+                correct += predicted.eq(targets).sum().item()
+            
+            # Calculate training metrics
+            train_loss = running_loss / len(train_loader)
+            train_acc = correct / total if total > 0 else 0
+            
+            # Evaluate on validation set
+            model.eval()
+            val_running_loss = 0.0
+            val_correct = 0
+            val_total = 0
+            
+            with torch.no_grad():
+                for inputs, targets in val_loader:
+                    inputs, targets = inputs.to(self.device), targets.to(self.device)
+                    outputs = model(inputs)
+                    loss = self.criterion(outputs, targets)
+                    val_running_loss += loss.item()
+                    
+                    _, predicted = outputs.max(1)
+                    val_total += targets.size(0)
+                    val_correct += predicted.eq(targets).sum().item()
+            
+            val_loss = val_running_loss / len(val_loader)
+            val_acc = val_correct / val_total if val_total > 0 else 0
+            
+            # Store epoch metrics
+            self.epoch_metrics.append({
+                'epoch': epoch + 1,  # 1-indexed for better readability
+                'train_loss': train_loss,
+                'train_acc': train_acc,
+                'val_loss': val_loss,
+                'val_acc': val_acc
+            })
+            
+            # Log progress
+            epoch_time = time.time() - epoch_start
+            logger.info(f"Epoch {epoch+1}/{epochs} - Time: {epoch_time:.2f}s - Train Loss: {train_loss:.4f} - Train Acc: {train_acc:.4f} - Val Loss: {val_loss:.4f} - Val Acc: {val_acc:.4f}")
+            
+            # Switch back to training mode for next epoch
+            model.train()
         
         train_time = time.time() - start_time
         

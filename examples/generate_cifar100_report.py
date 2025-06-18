@@ -338,8 +338,9 @@ def generate_cifar100_transfer_report(cifar10_results, cifar100_results, output_
         <strong>{cifar100_results.get('best_acc', 0)*100:.2f}%</strong> accuracy on CIFAR-100, compared to 
         <strong>{cifar10_results.get('best_acc', 0)*100:.2f}%</strong> on CIFAR-10.</p>
         <p>This represents a transfer efficiency of 
-        <strong>{(cifar100_results.get('best_acc', 0)/cifar10_results.get('best_acc', 0))*100:.2f}%</strong>.</p>
-        <p><em>Note: Test visualizations show only a small sample (typically 200 images) out of the full 10,000 test images in the dataset.</em></p>
+        <strong>{(cifar100_results.get('best_acc', 0)/cifar10_results.get('best_acc', 1))*100:.2f}%</strong> 
+        {"(Note: CIFAR-10 accuracy is zero or missing)" if cifar10_results.get('best_acc', 0) == 0 else ""}.</p>
+        <p><strong>Note:</strong> Accuracy is based on the full test set of 10,000 samples. Only a subset of images is shown here.</p>
     </div>
     
     <h2>Performance Comparison</h2>
@@ -388,19 +389,83 @@ def main():
     cifar10_path = 'cifar10_results.pth'
     cifar100_path = 'cifar100_transfer_results.pth'
     
+    # Check if result files exist
+    missing_files = []
     if not os.path.exists(cifar10_path):
-        print(f"Error: CIFAR-10 results not found at {cifar10_path}")
-        return
-    
+        missing_files.append(cifar10_path)
     if not os.path.exists(cifar100_path):
-        print(f"Error: CIFAR-100 results not found at {cifar100_path}")
-        return
+        missing_files.append(cifar100_path)
     
-    cifar10_results = torch.load(cifar10_path)
-    cifar100_results = torch.load(cifar100_path)
+    # If any files are missing, generate a placeholder report
+    if missing_files:
+        print(f"Warning: The following result files are missing: {', '.join(missing_files)}")
+        print("Generating placeholder report instead.")
+        
+        # Create placeholder HTML report
+        placeholder_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>CIFAR-100 Transfer Learning Report (Placeholder)</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }}
+                h1 {{ color: #333; }}
+                .placeholder-box {{ 
+                    background-color: #f8f9fa; 
+                    border-left: 4px solid #e74c3c; 
+                    padding: 15px; 
+                    margin: 20px 0; 
+                }}
+                .metadata {{ margin-top: 30px; font-size: 0.9em; color: #7f8c8d; }}
+            </style>
+        </head>
+        <body>
+            <h1>CIFAR-100 Transfer Learning Report</h1>
+            
+            <div class="placeholder-box">
+                <h3>Training Not Completed</h3>
+                <p>This is a placeholder report. The CIFAR-100 transfer learning experiment has not been completed yet.</p>
+                <p>Missing files: {', '.join(missing_files)}</p>
+                <p>Please run the CIFAR-100 transfer learning experiment first to generate a complete report.</p>
+            </div>
+            
+            <div class="metadata">
+                <p>Report generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p>LossLandscapeProbe Framework</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Write placeholder HTML to file
+        with open(args.output, 'w') as f:
+            f.write(placeholder_html)
+        
+        # Also save a copy with a fixed name for the website
+        fixed_output_path = 'cifar100_transfer_report.html'
+        with open(fixed_output_path, 'w') as f:
+            f.write(placeholder_html)
+        
+        print(f"Placeholder CIFAR-100 transfer report generated at: {args.output}")
+        print(f"Placeholder report also saved to: {fixed_output_path}")
+        sys.exit(0)
+    
+    # Load results if files exist
+    try:
+        cifar10_results = torch.load(cifar10_path)
+        cifar100_results = torch.load(cifar100_path)
+    except Exception as e:
+        print(f"Error loading result files: {e}")
+        sys.exit(1)
     
     # Generate report
-    generate_cifar100_transfer_report(cifar10_results, cifar100_results, args.output)
+    try:
+        generate_cifar100_transfer_report(cifar10_results, cifar100_results, args.output)
+        print(f"CIFAR-100 transfer report successfully generated at: {args.output}")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error generating CIFAR-100 transfer report: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

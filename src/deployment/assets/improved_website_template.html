@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en" x-data="reportViewer()">
+<head>
+  <meta charset="UTF-8">
+  <title>LossLandscapeProbe - Test Reports</title>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    body { 
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
+      display: flex; 
+      gap: 1rem; 
+      padding: 1rem; 
+      background: #111; 
+      color: #eee; 
+      margin: 0;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    
+    #sidebar { 
+      width: 250px; 
+      border-right: 1px solid #444; 
+      padding-right: 1rem;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    
+    #viewer { 
+      flex: 1; 
+      height: 100%; 
+      display: flex;
+      flex-direction: column;
+    }
+    
+    iframe { 
+      width: 100%; 
+      flex: 1;
+      border: none; 
+      background: white; 
+    }
+    
+    .file-link { 
+      cursor: pointer; 
+      color: #4cf; 
+      text-decoration: underline; 
+      margin: 0.25em 0; 
+      padding: 4px;
+      border-radius: 4px;
+    }
+    
+    .file-link.indent {
+      margin-left: 15px;
+      font-size: 0.95em;
+    }
+    
+    .subsection-title {
+      color: #8cf;
+      font-weight: bold;
+      margin-top: 8px;
+      margin-bottom: 4px;
+    }
+    
+    .file-link:hover { 
+      background: #222; 
+    }
+    
+    .file-link.disabled {
+      cursor: default;
+      color: #666;
+      text-decoration: none;
+    }
+    
+    .file-link.disabled:hover {
+      background: transparent;
+    }
+    
+    .section-title {
+      font-weight: bold;
+      margin-top: 1rem;
+      color: #8cf;
+      border-bottom: 1px solid #444;
+      padding-bottom: 0.5rem;
+    }
+    
+    .repo-link {
+      display: flex;
+      align-items: center;
+      color: #4cf;
+      text-decoration: none;
+      padding: 8px;
+      border-radius: 4px;
+      margin: 8px 0;
+      background: #222;
+    }
+    
+    .repo-link:hover {
+      background: #333;
+    }
+    
+    .repo-link svg {
+      margin-right: 8px;
+    }
+    
+    .readme-content {
+      background: #222;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-y: auto;
+      color: #eee;
+      flex: 1;
+    }
+    
+    .readme-content img {
+      max-width: 100%;
+    }
+    
+    .readme-content h1, .readme-content h2 {
+      color: #8cf;
+    }
+    
+    .readme-content a {
+      color: #4cf;
+    }
+    
+    .readme-content pre {
+      background: #333;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    
+    .readme-content code {
+      background: #333;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    
+    .content-header {
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid #444;
+    }
+    
+    .content-header h1 {
+      margin: 0;
+      color: #4cf;
+      font-size: 1.8rem;
+    }
+    
+    .training-plot, .resource-comparison {
+      text-align: center;
+      background: white;
+      padding: 1rem;
+      border-radius: 4px;
+      margin: 1rem 0;
+    }
+    
+    .comparison-chart {
+      max-width: 100%;
+      max-height: 500px;
+    }
+    
+    .info-message {
+      background-color: #2c3e50;
+      color: #ecf0f1;
+      padding: 8px 12px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-style: italic;
+      border-left: 4px solid #3498db;
+    }
+    
+    .report-links {
+      list-style-type: none;
+      padding: 0;
+      margin: 0 0 20px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .report-links li {
+      margin: 0;
+    }
+    
+    .report-links a {
+      display: inline-block;
+      padding: 6px 12px;
+      background-color: #2c3e50;
+      color: #ecf0f1;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 0.9em;
+      transition: all 0.2s ease;
+    }
+    
+    .report-links a:hover {
+      background-color: #34495e;
+    }
+    
+    .report-links a.active {
+      background-color: #3498db;
+      font-weight: bold;
+    }
+    
+    .report-frame {
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 10px;
+      background-color: #1a1a1a;
+    }
+    
+    .select-report-message {
+      padding: 40px;
+      text-align: center;
+      color: #999;
+      font-style: italic;
+    }
+    
+    .training-plot img {
+      max-width: 100%;
+      max-height: 500px;
+    }
+    
+    .missing-content {
+      background: #222;
+      padding: 2rem;
+      border-radius: 4px;
+      text-align: center;
+      color: #999;
+      font-style: italic;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .report-container {
+      padding: 20px;
+      overflow-y: auto;
+    }
+    
+    .report-container h2 {
+      color: #3498db;
+      border-bottom: 1px solid #3498db;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .report-container .section {
+      margin-bottom: 30px;
+      padding: 15px;
+      background-color: #2a2a2a;
+      border-radius: 5px;
+    }
+    
+    .report-container h3 {
+      color: #e74c3c;
+      margin-top: 0;
+    }
+    
+    .training-plot {
+      max-width: 100%;
+      height: auto;
+      display: block;
+      margin: 0 auto;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+    
+    .log-container {
+      margin-top: 20px;
+      border: 1px solid #444;
+      border-radius: 5px;
+      padding: 15px;
+      background-color: #222;
+    }
+    
+    .log-display {
+      background-color: #2c3e50;
+      color: #ecf0f1;
+      padding: 10px;
+      border-radius: 5px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      margin-top: 10px;
+    }
+    
+    .refresh-button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+    
+    .refresh-button:hover {
+      background-color: #2980b9;
+    }
+    
+    .metrics-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .metric-chart {
+      flex: 1;
+      min-width: 300px;
+      background-color: #333;
+      border-radius: 5px;
+      padding: 15px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .log-section {
+      margin-top: 20px;
+      border-top: 1px solid #444;
+      padding-top: 15px;
+    }
+    
+    .metric-chart h5 {
+      color: #3498db;
+      margin-top: 0;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <div class="logo">
+      <a href="https://github.com/peterkelly70/LossLandscapeProbe" target="_blank">
+        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub" width="32" height="32">
+        <span>GitHub Repository</span>
+      </a>
+    </div>
+    
+    <div class="navigation">
+      <div class="section-title">Documentation</div>
+      <div class="file-link" @click="activeTab = 'readme'">README</div>
+      <div class="file-link" @click="activeTab = 'whitepaper'" x-show="whitepaperExists">White Paper</div>
+      
+      <div class="section-title">CIFAR-10 Models</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10'">Base Model</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10_10'">Resource Level 10%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10_20'">Resource Level 20%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10_30'">Resource Level 30%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa10_40'">Resource Level 40%</div>
+      
+      <div class="section-title">CIFAR-100 Models</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100'">Base Model</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_10'">Resource Level 10%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_20'">Resource Level 20%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_30'">Resource Level 30%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_40'">Resource Level 40%</div>
+      <div class="file-link indent" @click="activeTab = 'cifa100_transfer'">Transfer Learning</div>
+      
+      <!-- Reports sections removed as per user request -->
+    </div>
+  </div>
+
+  <div id="viewer">
+    <div class="content-header">
+      <h1 x-text="getTabTitle()"></h1>
+    </div>
+    
+    <!-- README Tab -->
+    <div x-show="activeTab === 'readme'" class="readme-content" x-html="readmeHtml"></div>
+    
+    <!-- Whitepaper Tab -->
+    <div x-show="activeTab === 'whitepaper'" class="readme-content" x-html="whitepaperHtml"></div>
+    
+    <!-- Model Report Template -->
+    <template id="model-report-template">
+      <div class="report-container">
+        <h2 x-text="getModelTitle(activeTab)"></h2>
+        
+        <div class="section">
+          <h3>Model Results</h3>
+          <div class="info-message">
+            This report shows the results for the selected model configuration.
+          </div>
+        </div>
+        
+        <div class="section">
+          <h3>Training Progress</h3>
+          
+          <!-- Base model specific progress reports links -->
+          <div x-show="activeTab === 'cifa10'">
+            <p><a href="cifar10_progress_report.html" target="_blank" class="report-link">View CIFAR-10 Training Progress Report</a></p>
+          </div>
+          <div x-show="activeTab === 'cifa100'">
+            <p><a href="cifar100_progress_report.html" target="_blank" class="report-link">View CIFAR-100 Training Progress Report</a></p>
+          </div>
+          <div x-show="activeTab === 'cifa100_transfer'">
+            <p><a href="cifar100_transfer_report.html" target="_blank" class="report-link">View CIFAR-100 Transfer Learning Report</a></p>
+          </div>
+          
+          <!-- Training progress visualization for all models -->
+          <div class="log-container">
+            <h4>Real-time Training Progress</h4>
+            <button @click="fetchTrainingLog(activeTab)" class="refresh-button">Refresh Data</button>
+            
+            <!-- Training metrics visualization -->
+            <div x-show="trainingData.epochs && trainingData.epochs.length > 0" class="metrics-container">
+              <div class="metric-chart">
+                <h5>Training Loss</h5>
+                <canvas :id="activeTab + 'LossChart'" width="400" height="200"></canvas>
+              </div>
+              <div class="metric-chart">
+                <h5>Training Accuracy</h5>
+                <canvas :id="activeTab + 'AccuracyChart'" width="400" height="200"></canvas>
+              </div>
+            </div>
+            
+            <!-- Raw log display -->
+            <div class="log-section">
+              <h5>Raw Training Log</h5>
+              <pre x-show="trainingLog" x-text="trainingLog" class="log-display"></pre>
+              <p x-show="!trainingLog" class="missing-content">Click 'Refresh Data' to view the latest training progress.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <h3>Available Reports</h3>
+          <div x-show="modelReports.length > 0">
+            <ul class="report-links">
+              <template x-for="report in modelReports">
+                <li>
+                  <a :href="'reports/' + activeTab + '/' + report" target="_blank" x-text="formatReportName(report)"></a>
+                </li>
+              </template>
+            </ul>
+          </div>
+          <div x-show="modelReports.length === 0" class="missing-content">
+            <p>No report files found for this model configuration.</p>
+          </div>
+        </div>
+        
+        <div class="section" x-show="modelReports.some(report => report.endsWith('.pth'))">
+          <h3>Model Data</h3>
+          <p>This model has trained weights and results data available.</p>
+          <div class="info-message">
+            <p>You can load this model's data using the following Python code:</p>
+            <pre>import torch
+results = torch.load('reports/<span x-text="activeTab"></span>/model_results.pth')</pre>
+          </div>
+        </div>
+      </div>
+    </template>
+    
+    <!-- CIFAR-10 Base Model Tab -->
+    <div x-show="activeTab === 'cifa10'" x-init="if(activeTab === 'cifa10') fetchModelReports('cifa10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    
+    <!-- CIFAR-10 Resource Level Tabs -->
+    <div x-show="activeTab === 'cifa10_10'" x-init="if(activeTab === 'cifa10_10') fetchModelReports('cifa10_10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifa10_20'" x-init="if(activeTab === 'cifa10_20') fetchModelReports('cifa10_20')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifa10_30'" x-init="if(activeTab === 'cifa10_30') fetchModelReports('cifa10_30')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifa10_40'" x-init="if(activeTab === 'cifa10_40') fetchModelReports('cifa10_40')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    
+    <!-- CIFAR-100 Base Model Tab -->
+    <div x-show="activeTab === 'cifa100'" x-init="if(activeTab === 'cifa100') fetchModelReports('cifa100')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    
+    <!-- CIFAR-100 Resource Level Tabs -->
+    <div x-show="activeTab === 'cifa100_10'" x-init="if(activeTab === 'cifa100_10') fetchModelReports('cifa100_10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifa100_20'" x-init="if(activeTab === 'cifa100_20') fetchModelReports('cifa100_20')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifa100_30'" x-init="if(activeTab === 'cifa100_30') fetchModelReports('cifa100_30')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifa100_40'" x-init="if(activeTab === 'cifa100_40') fetchModelReports('cifa100_40')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    
+    <!-- CIFAR-100 Transfer Learning Tab -->
+    <div x-show="activeTab === 'cifa100_transfer'" x-init="if(activeTab === 'cifa100_transfer') fetchModelReports('cifa100_transfer')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    
+    <!-- CIFAR-10 Training Progress Tab -->
+    <div x-show="activeTab === 'cifar10_training'" class="report-container">
+      <h2>CIFAR-10 Training Progress</h2>
+      
+      <div class="section">
+        <h3>Meta-Model Training Overview</h3>
+        <p>This report shows the training progress of a CNN model on CIFAR-10 using the meta-model approach for hyperparameter optimization. The meta-model predicts optimal hyperparameters based on dataset characteristics and model architecture.</p>
+      </div>
+      
+      <!-- Training Plot -->
+      <div class="section">
+        <h3>Training History Plot</h3>
+        <div x-show="trainingPlotExists">
+          <img src="training_history.png" alt="Training History Plot" class="training-plot">
+          <p><strong>CIFAR-10 Training</strong> with Meta-Model Predicted Hyperparameters</p>
+        </div>
+        <div x-show="!trainingPlotExists" class="missing-content">
+          <p>CIFAR-10 training plot is not yet available. Training may still be in progress.</p>
+        </div>
+      </div>
+      
+      <!-- CIFAR-10 Training Report -->
+      <div class="section">
+        <h3>Detailed Training Progress</h3>
+        <p class="info-message">This report is generated on-demand from the latest training data.</p>
+        <iframe src="generate_training_progress.php?model=cifa10" style="width: 100%; height: 800px; border: none;"></iframe>
+      </div>
+    </div>
+    
+    <!-- CIFAR-10 Test Results Tab -->
+    <div x-show="activeTab === 'cifar10_test'" class="report-container">
+      <h2>CIFAR-10 Test Results</h2>
+      
+      <div class="section">
+        <h3>Model Evaluation</h3>
+        <p>This report shows the evaluation results of the trained model on the CIFAR-10 test dataset, including accuracy metrics and sample predictions.</p>
+        <iframe :src="'reports/' + activeTab + '/latest_test_report.html'" style="width: 100%; height: 700px; border: none;"></iframe>
+      </div>
+    </div>
+    
+    <!-- CIFAR-100 Transfer Tab -->
+    <div x-show="activeTab === 'cifar100_transfer'" class="report-container">
+      <h2>CIFAR-100 Transfer Learning</h2>
+      
+      <div class="section">
+        <h3>Transfer Learning Overview</h3>
+        <p>This report shows the results of transfer learning from CIFAR-10 to CIFAR-100 using the meta-model approach. The model was pre-trained on CIFAR-10 and then fine-tuned on CIFAR-100.</p>
+      </div>
+      
+      <div class="section">
+        <h3>Transfer Learning Results</h3>
+        <iframe src="cifar100_transfer_report.html" style="width: 100%; height: 700px; border: none;"></iframe>
+      </div>
+    </div>
+    
+    <!-- CIFAR-100 Test Results Tab -->
+    <div x-show="activeTab === 'cifar100_test'" class="report-container">
+      <h2>CIFAR-100 Test Results</h2>
+      
+      <div class="section">
+        <h3>Model Evaluation</h3>
+        <p>This report shows the evaluation results of the trained model on the CIFAR-100 test dataset, including accuracy metrics and sample predictions.</p>
+        <iframe src="cifar100_test_report.html" style="width: 100%; height: 700px; border: none;"></iframe>
+      </div>
+    </div>
+    
+    <!-- CIFAR-100 Training Progress Tab -->
+    <div x-show="activeTab === 'cifar100_progress'" class="report-container">
+      <h2>CIFAR-100 Training Progress</h2>
+      
+      <div class="section">
+        <h3>Meta-Model Training Overview</h3>
+        <p>This report shows the training progress of a CNN model on CIFAR-100 using the meta-model approach for hyperparameter optimization. The meta-model predicts optimal hyperparameters based on dataset characteristics and model architecture.</p>
+      </div>
+      
+      <div class="section">
+        <h3>Detailed Training Progress</h3>
+        <p class="info-message">This report is generated on-demand from the latest training data.</p>
+        <iframe src="generate_training_progress.php?model=cifa100" style="width: 100%; height: 800px; border: none;"></iframe>
+      </div>
+    </div>
+    
+    <!-- CIFAR-10 Resource Comparison Tab -->
+    <div x-show="activeTab === 'cifar10_resource'" class="report-container">
+      <h2>CIFAR-10 Resource Comparison</h2>
+      
+      <div class="section">
+        <h3>Resource Efficiency Analysis</h3>
+        <p>This report compares the computational resources required by different training approaches on CIFAR-10, including the meta-model approach versus traditional methods like grid search and random search.</p>
+        <div class="resource-comparison">
+          <img src="cifar10_resource_comparison.png" alt="CIFAR-10 Resource Comparison" class="comparison-chart">
+        </div>
+      </div>
+    </div>
+    
+    <!-- CIFAR-100 Resource Comparison Tab -->
+    <div x-show="activeTab === 'cifar100_resource'" class="report-container">
+      <h2>CIFAR-100 Resource Comparison</h2>
+      
+      <div class="section">
+        <h3>Resource Efficiency Analysis</h3>
+        <p>This report compares the computational resources required by different training approaches on CIFAR-100, including the meta-model approach versus traditional methods like grid search and random search.</p>
+        <div class="resource-comparison">
+          <img src="cifar100_resource_comparison.png" alt="CIFAR-100 Resource Comparison" class="comparison-chart">
+        </div>
+      </div>
+    </div>
+    
+    <!-- All Training Reports Tab -->
+    <div x-show="activeTab === 'training_reports'" class="report-container">
+      <h2>All Training Reports</h2>
+      
+      <!-- Training Reports List -->
+      <div class="section">
+        <h3>Training Reports</h3>
+        <p>This section contains all historical training reports generated by the LossLandscapeProbe framework.</p>
+        <div class="reports-list" x-show="trainingFiles.length > 0">
+          <ul class="report-links">
+            <template x-for="file in trainingFiles">
+              <li>
+                <a href="#" @click.prevent="selectedTraining = file" x-text="formatReportName(file)" :class="{ 'active': selectedTraining === file }"></a>
+              </li>
+            </template>
+          </ul>
+          <div class="report-frame">
+            <iframe x-show="selectedTraining" :src="selectedTraining" style="width: 100%; height: 700px; border: none;"></iframe>
+            <div x-show="!selectedTraining" class="select-report-message">
+              <p>Select a report from the list to view its contents</p>
+            </div>
+          </div>
+        </div>
+    <!-- Training Reports and Test Reports tabs removed as per user request -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function reportViewer() {
+      return {
+        activeTab: 'readme',
+        files: [],
+        trainingFiles: [],
+        selected: null,
+        readmeHtml: '',
+        whitepaperHtml: '',
+        whitepaperExists: false,
+        trainingPlotExists: false,
+        trainingReportExists: false,
+        cifar100ReportExists: false,
+        cifar100ProgressReportExists: false,
+        modelReports: [],
+        trainingLog: '',
+        trainingData: {
+          epochs: [],
+          loss: [],
+          accuracy: [],
+          val_loss: [],
+          val_accuracy: []
+        },
+        charts: {},
+        
+        getModelTitle(tab) {
+          switch(tab) {
+            case 'cifa10': return 'CIFAR-10 Base Model';
+            case 'cifa10_10': return 'CIFAR-10 Resource Level 10%';
+            case 'cifa10_20': return 'CIFAR-10 Resource Level 20%';
+            case 'cifa10_30': return 'CIFAR-10 Resource Level 30%';
+            case 'cifa10_40': return 'CIFAR-10 Resource Level 40%';
+            case 'cifa100': return 'CIFAR-100 Base Model';
+            case 'cifa100_10': return 'CIFAR-100 Resource Level 10%';
+            case 'cifa100_20': return 'CIFAR-100 Resource Level 20%';
+            case 'cifa100_30': return 'CIFAR-100 Resource Level 30%';
+            case 'cifa100_40': return 'CIFAR-100 Resource Level 40%';
+            case 'cifa100_transfer': return 'CIFAR-100 Transfer Learning';
+            default: return tab;
+          }
+        },
+        
+        fetchTrainingLog(model) {
+          this.trainingLog = 'Loading log data...';
+          fetch(`read_training_log.php?model=${model}&type=training`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.error) {
+                this.trainingLog = `Error: ${data.error}`;
+              } else if (data.content) {
+                // Get the last 50 lines of the log for display
+                const lines = data.content.split('\n');
+                const lastLines = lines.slice(Math.max(0, lines.length - 50)).join('\n');
+                this.trainingLog = lastLines;
+                
+                // Parse training metrics from log
+                this.parseTrainingMetrics(data.content, model);
+              } else {
+                this.trainingLog = 'No log data available.';
+              }
+            })
+            .catch(err => {
+              this.trainingLog = `Error fetching log: ${err.message}`;
+            });
+        },
+        
+        parseTrainingMetrics(logContent, model) {
+          const lines = logContent.split('\n');
+          const trainingData = {
+            epochs: [],
+            loss: [],
+            accuracy: [],
+            val_loss: [],
+            val_accuracy: []
+          };
+          
+          // Regular expressions to match training metrics
+          const epochRegex = /Epoch\s+(\d+)\/(\d+)/;
+          const lossAccRegex = /loss:\s+([\d\.]+)\s+-\s+accuracy:\s+([\d\.]+)/;
+          const valLossAccRegex = /val_loss:\s+([\d\.]+)\s+-\s+val_accuracy:\s+([\d\.]+)/;
+          
+          let currentEpoch = null;
+          
+          lines.forEach(line => {
+            // Match epoch
+            const epochMatch = line.match(epochRegex);
+            if (epochMatch) {
+              currentEpoch = parseInt(epochMatch[1]);
+              if (!trainingData.epochs.includes(currentEpoch)) {
+                trainingData.epochs.push(currentEpoch);
+              }
+            }
+            
+            // Match training loss and accuracy
+            const lossAccMatch = line.match(lossAccRegex);
+            if (lossAccMatch && currentEpoch !== null) {
+              const loss = parseFloat(lossAccMatch[1]);
+              const accuracy = parseFloat(lossAccMatch[2]);
+              
+              // Only add if we don't already have data for this epoch
+              if (trainingData.loss.length < trainingData.epochs.length) {
+                trainingData.loss.push(loss);
+                trainingData.accuracy.push(accuracy);
+              }
+            }
+            
+            // Match validation loss and accuracy
+            const valLossAccMatch = line.match(valLossAccRegex);
+            if (valLossAccMatch && currentEpoch !== null) {
+              const valLoss = parseFloat(valLossAccMatch[1]);
+              const valAccuracy = parseFloat(valLossAccMatch[2]);
+              
+              // Only add if we don't already have data for this epoch
+              if (trainingData.val_loss.length < trainingData.epochs.length) {
+                trainingData.val_loss.push(valLoss);
+                trainingData.val_accuracy.push(valAccuracy);
+              }
+            }
+          });
+          
+          this.trainingData = trainingData;
+          
+          // Create or update charts
+          this.$nextTick(() => {
+            this.createOrUpdateCharts(model);
+          });
+        },
+        
+        createOrUpdateCharts(model) {
+          // Chart IDs based on model
+          const lossChartId = model === 'cifa10' ? 'lossChart' : 
+                            model === 'cifa100' ? 'cifa100LossChart' : 'cifa100TransferLossChart';
+          const accChartId = model === 'cifa10' ? 'accuracyChart' : 
+                           model === 'cifa100' ? 'cifa100AccuracyChart' : 'cifa100TransferAccuracyChart';
+          
+          // Destroy existing charts if they exist
+          if (this.charts[lossChartId]) {
+            this.charts[lossChartId].destroy();
+          }
+          if (this.charts[accChartId]) {
+            this.charts[accChartId].destroy();
+          }
+          
+          // Create loss chart
+          const lossCtx = document.getElementById(lossChartId).getContext('2d');
+          this.charts[lossChartId] = new Chart(lossCtx, {
+            type: 'line',
+            data: {
+              labels: this.trainingData.epochs,
+              datasets: [
+                {
+                  label: 'Training Loss',
+                  data: this.trainingData.loss,
+                  borderColor: 'rgb(255, 99, 132)',
+                  backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                  tension: 0.1
+                },
+                {
+                  label: 'Validation Loss',
+                  data: this.trainingData.val_loss,
+                  borderColor: 'rgb(54, 162, 235)',
+                  backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                  tension: 0.1
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: {
+                  beginAtZero: false
+                }
+              }
+            }
+          });
+          
+          // Create accuracy chart
+          const accCtx = document.getElementById(accChartId).getContext('2d');
+          this.charts[accChartId] = new Chart(accCtx, {
+            type: 'line',
+            data: {
+              labels: this.trainingData.epochs,
+              datasets: [
+                {
+                  label: 'Training Accuracy',
+                  data: this.trainingData.accuracy,
+                  borderColor: 'rgb(75, 192, 192)',
+                  backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                  tension: 0.1
+                },
+                {
+                  label: 'Validation Accuracy',
+                  data: this.trainingData.val_accuracy,
+                  borderColor: 'rgb(153, 102, 255)',
+                  backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                  tension: 0.1
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: {
+                  beginAtZero: false,
+                  max: 1.0
+                }
+              }
+            }
+          });
+        },
+        
+        fetchModelReports(modelDir) {
+          this.modelReports = [];
+          fetch(`list_model_reports.php?dir=${modelDir}`)
+            .then(res => res.json())
+            .then(data => {
+              this.modelReports = data;
+            })
+            .catch(err => {
+              console.error(`Failed to fetch reports for ${modelDir}:`, err);
+              this.modelReports = [];
+            });
+        },
+        
+        formatReportName(filename) {
+          // Extract the meaningful part of the filename and format it nicely
+          
+          // Remove file extension
+          let name = filename.replace(/\.(html|pth|csv|json|txt|png|jpg)$/, '');
+          
+          // Check if it's a timestamped file
+          const timestampMatch = name.match(/^(\d{4})-(\d{2})-(\d{2})_(.+)$/);
+          
+          if (timestampMatch) {
+            // Format as "Month Day, Year Report Name"
+            const year = timestampMatch[1];
+            const month = new Date(`${timestampMatch[1]}-${timestampMatch[2]}-01`).toLocaleString('default', { month: 'long' });
+            const day = parseInt(timestampMatch[3]);
+            let reportName = timestampMatch[4].replace(/_/g, ' ');
+            reportName = reportName.charAt(0).toUpperCase() + reportName.slice(1);
+            
+            return `${month} ${day}, ${year} ${reportName}`;
+          } else {
+            // Just capitalize and replace underscores with spaces
+            name = name.replace(/_/g, ' ');
+            
+            // Add file type indicator for common file extensions
+            const extension = filename.split('.').pop().toLowerCase();
+            let fileType = '';
+            
+            if (extension === 'pth') {
+              fileType = ' [Model Weights]';
+            } else if (extension === 'csv') {
+              fileType = ' [Data]';
+            } else if (extension === 'json') {
+              fileType = ' [Config]';
+            } else if (extension === 'png' || extension === 'jpg') {
+              fileType = ' [Image]';
+            } else if (extension === 'html') {
+              fileType = ' [Report]';
+            }
+            
+            // Capitalize first letter of each word
+            name = name.split(' ')
+              .map(word => {
+                // Don't capitalize words that are already properly capitalized
+                if (word === 'CIFAR-10' || word === 'CIFAR-100') {
+                  return word;
+                }
+                return word.charAt(0).toUpperCase() + word.slice(1);
+              })
+              .join(' ');
+            
+            return name + fileType;
+          }
+        },
+        
+        getTabTitle() {
+          switch(this.activeTab) {
+            case 'readme': return 'Documentation';
+            case 'whitepaper': return 'White Paper';
+            case 'cifa10': return 'CIFAR-10 Base Model';
+            case 'cifa10_10': return 'CIFAR-10 Resource Level 10%';
+            case 'cifa10_20': return 'CIFAR-10 Resource Level 20%';
+            case 'cifa10_30': return 'CIFAR-10 Resource Level 30%';
+            case 'cifa10_40': return 'CIFAR-10 Resource Level 40%';
+            case 'cifa100': return 'CIFAR-100 Base Model';
+            case 'cifa100_10': return 'CIFAR-100 Resource Level 10%';
+            case 'cifa100_20': return 'CIFAR-100 Resource Level 20%';
+            case 'cifa100_30': return 'CIFAR-100 Resource Level 30%';
+            case 'cifa100_40': return 'CIFAR-100 Resource Level 40%';
+            case 'cifa100_transfer': return 'CIFAR-100 Transfer Learning';
+            case 'training_reports': return 'Training Reports';
+            case 'reports': return 'Additional Test Reports';
+            default: return 'LossLandscapeProbe';
+          }
+        },
+        
+        init() {
+          // Fetch test reports list
+          fetch('list_reports.php')
+            .then(res => res.json())
+            .then(data => {
+              this.files = data;
+              if (data.length > 0) this.selected = data[0];
+            })
+            .catch(err => console.error("Failed to fetch test reports list:", err));
+            
+          // Fetch training reports list
+          fetch('list_training_reports.php')
+            .then(res => res.json())
+            .then(data => {
+              this.trainingFiles = data;
+            })
+            .catch(err => console.error("Failed to fetch training reports list:", err));
+          
+          // Fetch README content
+          fetch('README.md')
+            .then(res => res.text())
+            .then(data => {
+              this.readmeHtml = marked.parse(data);
+            })
+            .catch(err => {
+              console.error("Failed to fetch README:", err);
+              this.readmeHtml = "<p>Failed to load README. Please check if the file exists.</p>";
+            });
+            
+          // Fetch whitepaper content
+          fetch('whitepaper.md')
+            .then(res => {
+              this.whitepaperExists = res.ok;
+              if (res.ok) return res.text();
+              throw new Error("Whitepaper not found");
+            })
+            .then(data => {
+              this.whitepaperHtml = marked.parse(data);
+            })
+            .catch(err => {
+              console.error("Failed to fetch whitepaper:", err);
+              this.whitepaperExists = false;
+            });
+          
+          // Check if training plot exists
+          fetch('training_history.png', { method: 'HEAD' })
+            .then(res => {
+              this.trainingPlotExists = res.ok;
+            })
+            .catch(() => {
+              this.trainingPlotExists = false;
+            });
+          
+          // Check if training report exists
+          fetch('training_report.html', { method: 'HEAD' })
+            .then(res => {
+              this.trainingReportExists = res.ok;
+            })
+            .catch(() => {
+              this.trainingReportExists = false;
+            });
+          
+          // Check if CIFAR-100 transfer report exists
+          fetch('cifar100_transfer_report.html', { method: 'HEAD' })
+            .then(res => {
+              this.cifar100ReportExists = res.ok;
+            })
+            .catch(() => {
+              this.cifar100ReportExists = false;
+            });
+            
+          // Check if CIFAR-100 training progress report exists
+          fetch('cifar100_progress_report.html', { method: 'HEAD' })
+            .then(res => {
+              this.cifar100ProgressReportExists = res.ok;
+            })
+            .catch(() => {
+              this.cifar100ProgressReportExists = false;
+            });
+          
+          // Set default active tab based on what's available
+          if (this.trainingReportExists || this.trainingPlotExists) {
+            this.activeTab = 'cifar10_training';
+          } else if (this.cifar100ReportExists) {
+            this.activeTab = 'cifar100_transfer';
+          } else if (this.cifar100ProgressReportExists) {
+            this.activeTab = 'cifar100_progress';
+          } else if (this.trainingFiles.length > 0) {
+            this.activeTab = 'training_reports';
+          }
+        }
+      }
+    }
+  </script>
+
+</body>
+</html>

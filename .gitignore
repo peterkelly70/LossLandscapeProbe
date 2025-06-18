@@ -9,6 +9,10 @@ __pycache__/
 # data
 data/
 *.tar.gz
+
+# Trained model checkpoints
+trained/
+
 *.pth
 *.bin
 # Exclude dataset directories

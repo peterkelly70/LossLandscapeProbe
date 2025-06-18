@@ -183,25 +183,47 @@ class HyperparameterPredictor:
         Args:
             model_dir: Directory to save/load model files
         """
-        self.dataset_feature_extractor = DatasetFeatureExtractor()
-        self.training_feature_extractor = TrainingResultFeatureExtractor()
         self.model_dir = model_dir or os.path.join(os.path.dirname(__file__), '../models/meta')
-        
-        # Create model directory if it doesn't exist
         os.makedirs(self.model_dir, exist_ok=True)
         
-        # Initialize models for each hyperparameter
-        self.models = {}
-        self.scalers = {}
-        self.label_encoders = {}
+        # Initialize data storage
+        self.X = []  # Feature vectors
+        self.y = []  # Performance values
+        self.configs = []  # Hyperparameter configurations
         
-        # Track hyperparameter types and ranges
-        self.hyperparameter_types = {}
-        self.hyperparameter_ranges = {}
-        self.categorical_values = {}
+        # Initialize models
+        self.models = {}  # Maps hyperparameter name to model
+        self.feature_scaler = StandardScaler()
+        self.label_encoders = {}  # For categorical hyperparameters
+        self.hyperparameter_types = {}  # Maps hyperparameter name to type
+        
+        # Feature names
+        self.dataset_feature_names = [
+            # Basic statistics
+            'num_samples', 'num_features', 'num_classes',
+            # Class distribution statistics
+            'class_imbalance', 'class_entropy',
+            # Feature statistics
+            'feature_mean', 'feature_std', 'feature_skew', 'feature_kurtosis',
+            # Complexity measures
+            'feature_correlation_mean', 'feature_correlation_std'
+        ]
+        self.training_feature_names = [
+            # Training dynamics
+            'initial_loss', 'final_loss', 'loss_decrease_rate',
+            'initial_accuracy', 'final_accuracy', 'accuracy_increase_rate',
+            # Sharpness measures
+            'sharpness', 'perturbation_robustness',
+            # Resource usage
+            'resource_level', 'epochs'
+        ]
+        self.feature_names = self.dataset_feature_names + self.training_feature_names  # Combined feature names for importance analysis
         
         logger.info(f"Initialized HyperparameterPredictor with model directory: {self.model_dir}")
-    
+        
+        # Try to load existing models
+        self.load()
+
     def _get_feature_vector(self, dataset_features: Dict[str, float], 
                            training_features: Dict[str, float]) -> np.ndarray:
         """
@@ -269,97 +291,6 @@ class HyperparameterPredictor:
                     self.hyperparameter_ranges[name][1] = max(self.hyperparameter_ranges[name][1], value)
                 elif isinstance(value, str):
                     if name in self.categorical_values:
-                        self.categorical_values[name].add(value)
-                    else:
-                        self.categorical_values[name] = {value}
-    
-    def train(self):
-        """
-        Train the meta-model on all collected examples.
-        """
-        logger.info("Training hyperparameter prediction meta-model...")
-        
-        # Load all examples
-        examples = []
-        for filename in os.listdir(self.model_dir):
-            if filename.startswith('example_') and filename.endswith('.joblib'):
-                example_path = os.path.join(self.model_dir, filename)
-                example = joblib.load(example_path)
-                examples.append(example)
-        
-        if not examples:
-            logger.warning("No training examples found, cannot train meta-model")
-            return
-        
-        logger.info(f"Training meta-model with {len(examples)} examples")
-        
-        # Extract all hyperparameter names
-        all_hyperparams = set()
-        for example in examples:
-            all_hyperparams.update(example['hyperparameters'].keys())
-        
-        # Train a separate model for each hyperparameter
-        for hyperparam in all_hyperparams:
-            logger.info(f"Training model for hyperparameter: {hyperparam}")
-            
-            # Prepare training data
-            X = []
-            y = []
-            
-            for example in examples:
-                if hyperparam in example['hyperparameters']:
-                    feature_vector = self._get_feature_vector(
-                        example['dataset_features'],
-                        example['training_features']
-                    )
-                    X.append(feature_vector)
-                    y.append(example['hyperparameters'][hyperparam])
-            
-            if not X:
-                logger.warning(f"No examples for hyperparameter {hyperparam}, skipping")
-                continue
-            
-            X = np.array(X)
-            y = np.array(y)
-            
-            # Scale features
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(X)
-            
-            # Determine if this is a categorical or numerical hyperparameter
-            is_categorical = False
-            if hyperparam in self.categorical_values:
-                is_categorical = True
-                
-            if is_categorical:
-                # For categorical hyperparameters, use classification
-                label_encoder = LabelEncoder()
-                y_encoded = label_encoder.fit_transform(y)
-                model = RandomForestClassifier(n_estimators=100, random_state=42)
-                model.fit(X_scaled, y_encoded)
-                self.label_encoders[hyperparam] = label_encoder
-            else:
-                # For numerical hyperparameters, use regression
-                model = RandomForestRegressor(n_estimators=100, random_state=42)
-                model.fit(X_scaled, y)
-            
-            # Save model and scaler
-            self.models[hyperparam] = model
-            self.scalers[hyperparam] = scaler
-            
-            # Save to disk
-            model_path = os.path.join(self.model_dir, f'model_{hyperparam}.joblib')
-            scaler_path = os.path.join(self.model_dir, f'scaler_{hyperparam}.joblib')
-            joblib.dump(model, model_path)
-            joblib.dump(scaler, scaler_path)
-        
-        # Save hyperparameter types, ranges, and categorical values
-        types_path = os.path.join(self.model_dir, 'hyperparameter_types.joblib')
-        ranges_path = os.path.join(self.model_dir, 'hyperparameter_ranges.joblib')
-        categorical_path = os.path.join(self.model_dir, 'categorical_values.joblib')
-        joblib.dump(self.hyperparameter_types, types_path)
-        joblib.dump(self.hyperparameter_ranges, ranges_path)
-        joblib.dump(self.categorical_values, categorical_path)
         
         # Save label encoders
         for hyperparam, encoder in self.label_encoders.items():
@@ -474,6 +405,96 @@ class HyperparameterPredictor:
         
         logger.info(f"Predicted values for {len(predictions)} hyperparameters")
         return predictions
+        
+    def get_feature_importance(self) -> Dict[str, Dict[str, float]]:
+        """
+        Extract feature importance from the trained Random Forest models.
+        
+        Returns:
+            Dictionary mapping hyperparameters to their feature importance scores
+        """
+        if not self.models or not self.feature_names:
+            logger.warning("No trained models or feature names available for feature importance")
+            return {}
+        
+        importance_data = {}
+        
+        for hyperparam, model in self.models.items():
+            # Extract feature importance
+            importances = model.feature_importances_
+            
+            # Create a dictionary mapping feature names to importance scores
+            feature_importance = {}
+            for feature_name, importance in zip(self.feature_names, importances):
+                feature_importance[feature_name] = float(importance)
+            
+            importance_data[hyperparam] = feature_importance
+            
+            logger.debug(f"Extracted feature importance for {hyperparam}")
+        
+        return importance_data
+        
+    def get_hyperparameter_interaction(self, hyperparam: str, top_features: int = 3) -> Dict[str, Dict[str, List[float]]]:
+        """
+        Analyze how the top important features interact with the target hyperparameter.
+        
+        Args:
+            hyperparam: The hyperparameter to analyze
+            top_features: Number of top features to analyze
+            
+        Returns:
+            Dictionary with partial dependence data
+        """
+        if hyperparam not in self.models or not self.X:
+            logger.warning(f"No model or training data available for {hyperparam}")
+            return {}
+        
+        # Get feature importance
+        model = self.models[hyperparam]
+        importances = model.feature_importances_
+        
+        # Get indices of top features
+        top_indices = np.argsort(importances)[-top_features:]
+        
+        # Get feature names
+        top_feature_names = [self.feature_names[i] for i in top_indices]
+        
+        # Create partial dependence data
+        interaction_data = {}
+        X_array = np.array(self.X)
+        X_scaled = self.feature_scaler.transform(X_array)
+        
+        for idx, feature_name in zip(top_indices, top_feature_names):
+            # Get range of feature values
+            feature_min = np.min(X_scaled[:, idx])
+            feature_max = np.max(X_scaled[:, idx])
+            
+            # Create grid of values
+            grid = np.linspace(feature_min, feature_max, 10)
+            predictions = []
+            
+            # For each grid point, make predictions
+            for grid_point in grid:
+                X_modified = X_scaled.copy()
+                X_modified[:, idx] = grid_point
+                
+                if hyperparam in self.hyperparameter_types:
+                    # Regression model
+                    pred = np.mean(model.predict(X_modified))
+                else:
+                    # Classification model
+                    pred_probs = model.predict_proba(X_modified)
+                    pred = np.mean(pred_probs[:, 0])  # Use first class probability
+                
+                predictions.append(float(pred))
+            
+            # Store grid and predictions
+            interaction_data[feature_name] = {
+                'grid': grid.tolist(),
+                'predictions': predictions
+            }
+        
+        return interaction_data
 
 
 class MetaModelTrainer:

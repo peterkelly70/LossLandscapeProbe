@@ -1,0 +1,19 @@
+
+# CIFAR10 Resource Comparison Summary
+# Generated on 2025-06-17 06:24:50
+#
+# This table shows how model performance varies with different dataset percentages.
+# For each percentage, multiple random subsets were used with various hyperparameter perturbations.
+# - Dataset Size (%): Percentage of the full dataset used for training
+# - Random Subsets: Number of different random subsets used at each percentage level
+# - Hyperparameter Perturbations: Number of hyperparameter variations tested per subset
+# - Meta-Model Time: Time spent on meta-model training and prediction
+# - Training Time: Time spent on actual model training
+# - Total Time: Combined time for the entire process
+# - Test Accuracy: Final accuracy achieved on the test set
+# - Efficiency: Accuracy per unit time (higher is better)
+Dataset Size (%),Random Subsets,Hyperparameter Perturbations,Meta-Model Time (s),Training Time (s),Total Time (s),Test Accuracy (%),Efficiency (Acc/Time × 1000)
+10,6,10,16.1,8.7,24.8,71.4,2884.27
+20,6,10,36.3,70.0,106.3,72.02,677.34
+30,6,10,34.5,142.2,176.7,80.37,454.89
+40,6,10,35.8,238.6,274.3,86.23,314.31
