@@ -196,3 +196,5 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+data/cifar-100-python.tar.gz
+data/cifar-100-python/train
