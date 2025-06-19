@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""
+Generate test report for CIFAR-10/CIFAR-100 models with the dark gray/blue theme.
+"""
+
 import os
 import torch
 import numpy as np
@@ -298,7 +303,6 @@ def generate_html_report(model, test_loader, output_path, max_samples=100):
 
 def generate_placeholder_report(output_path):
     """Generate a placeholder report when no model is available."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -333,7 +337,6 @@ def generate_placeholder_report(output_path):
     </head>
     <body>
         <h1>CIFAR-10 Test Report (Placeholder)</h1>
-        <p>Generated on: {timestamp}</p>
         
         <div class="placeholder">
             <h2>No trained model available</h2>
@@ -360,10 +363,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate CIFAR-10 test report')
     parser.add_argument('--model', type=str, default=None, help='Path to the model file')
     parser.add_argument('--output', type=str, default=None, help='Output path for the HTML report')
-    parser.add_argument('--model-type', type=str, default='cifa10', 
-                        choices=['cifa10', 'cifa10_10', 'cifa10_20', 'cifa10_30', 'cifa10_40',
-                                'cifa100', 'cifa100_10', 'cifa100_20', 'cifa100_30', 'cifa100_40',
-                                'cifa100_transfer'],
+    parser.add_argument('--model-type', type=str, default='cifar10', 
+                        choices=['cifar10', 'cifar10_10', 'cifar10_20', 'cifar10_30', 'cifar10_40',
+                                'cifar100', 'cifar100_10', 'cifar100_20', 'cifar100_30', 'cifar100_40',
+                                'cifar100_transfer'],
                         help='Model type to determine the output directory')
     args = parser.parse_args()
     
@@ -375,7 +378,7 @@ if __name__ == "__main__":
         model_path = args.model
     else:
         # Extract dataset number (10 or 100) from model_type
-        dataset_num = model_type[-2:] if 'cifa' in model_type else '10'
+        dataset_num = model_type[-2:] if 'cifar' in model_type else '10'
         
         # Determine if we're looking for a meta-model or a trained model
         is_meta_model = 'meta' in model_type.lower()
@@ -385,19 +388,19 @@ if __name__ == "__main__":
         if not is_meta_model:
             model_paths = [
                 # Standard naming convention for trained models
-                os.path.join("trained", model_type, f"cifa{dataset_num}_model.pth"),
-                os.path.join("trained", model_type, f"cifa{dataset_num}_trained.pth"),
+                os.path.join("trained", model_type, f"cifar{dataset_num}_model.pth"),
+                os.path.join("trained", model_type, f"cifar{dataset_num}_trained.pth"),
                 
                 # Multisamplesize trained models
-                os.path.join("trained", model_type, f"cifa{dataset_num}_multisamplesize_trained.pth"),
-                os.path.join("trained", model_type, f"cifa{dataset_num}_multisamplesize_model.pth"),
+                os.path.join("trained", model_type, f"cifar{dataset_num}_multisamplesize_trained.pth"),
+                os.path.join("trained", model_type, f"cifar{dataset_num}_multisamplesize_model.pth"),
                 
                 # Best models (especially for transfer learning)
-                os.path.join("trained", model_type, f"cifa{dataset_num}_best_model.pth"),
+                os.path.join("trained", model_type, f"cifar{dataset_num}_best_model.pth"),
                 
                 # Latest models in reports directory
                 os.path.join("reports", model_type, f"latest_model.pth"),
-                os.path.join("reports", model_type, f"cifa{dataset_num}_latest_model.pth"),
+                os.path.join("reports", model_type, f"cifar{dataset_num}_latest_model.pth"),
                 
                 # Legacy paths for backward compatibility
                 os.path.join("models", f"cifar{dataset_num}_model.pth"),
@@ -407,7 +410,7 @@ if __name__ == "__main__":
             # Meta-models have a different architecture, so we prioritize them
             model_paths = [
                 # Meta models
-                os.path.join("trained", model_type, f"cifa{dataset_num}_meta_model.pth"),
+                os.path.join("trained", model_type, f"cifar{dataset_num}_meta_model.pth"),
                 os.path.join("trained", "meta_model_trained.pth"),
                 os.path.join("models", "meta_model_trained.pth"),
             ]
@@ -436,6 +439,8 @@ if __name__ == "__main__":
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
     else:
         # Use model-specific directory with fixed filename
+        # Ensure we're using the correct directory naming (cifar not cifa)
+        model_type = model_type.replace('cifa', 'cifar')
         output_dir = os.path.join("reports", model_type)
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, "latest_test_report.html")

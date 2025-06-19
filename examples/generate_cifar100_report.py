@@ -393,7 +393,7 @@ def generate_cifar100_transfer_report(cifar10_results, cifar100_results, output_
         f.write(html_content)
     
     # Save a copy in the reports directory with a fixed name for the website
-    reports_dir = os.path.join('reports', 'cifa100_transfer')
+    reports_dir = os.path.join('reports', 'cifar100_transfer')
     os.makedirs(reports_dir, exist_ok=True)
     fixed_output_path = os.path.join(reports_dir, 'latest_test_report.html')
     with open(fixed_output_path, 'w') as f:
@@ -404,7 +404,7 @@ def generate_cifar100_transfer_report(cifar10_results, cifar100_results, output_
 
 def main():
     parser = argparse.ArgumentParser(description='Generate CIFAR-100 transfer learning report')
-    reports_dir = os.path.join('reports', 'cifa100_transfer')
+    reports_dir = os.path.join('reports', 'cifar100_transfer')
     os.makedirs(reports_dir, exist_ok=True)
     parser.add_argument('--output', type=str, default=os.path.join(reports_dir, 'cifar100_transfer_report.html'),
                         help='Output HTML file path')
@@ -475,7 +475,7 @@ def main():
             f.write(placeholder_html)
         
         # Save a copy in the reports directory with a fixed name for the website
-        reports_dir = os.path.join('reports', 'cifa100_transfer')
+        reports_dir = os.path.join('reports', 'cifar100_transfer')
         os.makedirs(reports_dir, exist_ok=True)
         fixed_output_path = os.path.join(reports_dir, 'latest_test_report.html')
         with open(fixed_output_path, 'w') as f:

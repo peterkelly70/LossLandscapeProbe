@@ -12,10 +12,10 @@ $log_type = isset($_GET['type']) ? $_GET['type'] : 'training';
 
 // Validate model parameter
 $allowed_models = array(
-    'cifa10', 'cifa100', 
-    'cifa10_10', 'cifa10_20', 'cifa10_30', 'cifa10_40',
-    'cifa100_10', 'cifa100_20', 'cifa100_30', 'cifa100_40',
-    'cifa100_transfer'
+    'cifar10', 'cifar100', 
+    'cifar10_10', 'cifar10_20', 'cifar10_30', 'cifar10_40',
+    'cifar100_10', 'cifar100_20', 'cifar100_30', 'cifar100_40',
+    'cifar100_transfer'
 );
 
 if (!in_array($model, $allowed_models)) {
@@ -36,15 +36,15 @@ if (!in_array($log_type, $allowed_types)) {
 $log_file = '';
 $meta_model_log = false;
 if ($log_type === 'training') {
-    if ($model === 'cifa10') {
+    if ($model === 'cifar10') {
         $log_file = 'cifar10_training.log';
-    } elseif ($model === 'cifa100') {
+    } elseif ($model === 'cifar100') {
         $log_file = 'cifar100_training.log';
-    } elseif ($model === 'cifa100_transfer') {
+    } elseif ($model === 'cifar100_transfer') {
         $log_file = 'cifar100_transfer.log';
     } else {
         // For resource level models, use the base model log with resource level
-        if (strpos($model, 'cifa10') === 0) {
+        if (strpos($model, 'cifar10') === 0) {
             $base = 'cifar10';
             $resource_level = substr($model, 6); // Extract the resource level (e.g., 10, 20)
             $log_file = $base . '_training_' . $resource_level . 'pct.log';
@@ -68,7 +68,7 @@ if ($log_type === 'training') {
     }
 } else {
     // Test logs
-    if (strpos($model, 'cifa10') === 0) {
+    if (strpos($model, 'cifar10') === 0) {
         $log_file = 'cifar10_test.log';
     } else {
         $log_file = 'cifar100_test.log';

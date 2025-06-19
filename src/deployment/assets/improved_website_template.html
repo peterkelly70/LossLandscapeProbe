@@ -397,19 +397,19 @@
       <div class="file-link" @click="activeTab = 'license'">License</div>
       
       <div class="section-title">CIFAR-10 Models</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10'">Base Model</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10_10'">Sample Size 10%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10_20'">Sample Size 20%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10_30'">Sample Size 30%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa10_40'">Sample Size 40%</div>
+      <div class="file-link indent" @click="activeTab = 'cifar10'">Base Model</div>
+      <div class="file-link indent" @click="activeTab = 'cifar10_10'">Sample Size 10%</div>
+      <div class="file-link indent" @click="activeTab = 'cifar10_20'">Sample Size 20%</div>
+      <div class="file-link indent" @click="activeTab = 'cifar10_30'">Sample Size 30%</div>
+      <div class="file-link indent" @click="activeTab = 'cifar10_40'">Sample Size 40%</div>
       
       <div class="section-title">CIFAR-100 Models</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100'">Base Model</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_10'">Sample Size 10%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_20'">Sample Size 20%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_30'">Sample Size 30%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_40'">Sample Size 40%</div>
-      <div class="file-link indent" @click="activeTab = 'cifa100_transfer'">Transfer Learning</div>
+      <div class="file-link indent" @click="activeTab = 'cifar100'">Base Model</div>
+      <div class="file-link indent" @click="activeTab = 'cifar100_10'">Sample Size 10%</div>
+      <div class="file-link indent" @click="activeTab = 'cifar100_20'">Sample Size 20%</div>
+      <div class="file-link indent" @click="activeTab = 'cifar100_30'">Sample Size 30%</div>
+      <div class="file-link indent" @click="activeTab = 'cifar100_40'">Sample Size 40%</div>
+      <div class="file-link indent" @click="activeTab = 'cifar100_transfer'">Transfer Learning</div>
       
       <!-- Reports sections removed as per user request -->
     </div>
@@ -528,25 +528,25 @@
     </template>
     
     <!-- CIFAR-10 Base Model Tab -->
-    <div x-show="activeTab === 'cifa10'" x-init="if(activeTab === 'cifa10') fetchModelReports('cifa10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar10'" x-init="if(activeTab === 'cifar10') fetchModelReports('cifar10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
     
     <!-- CIFAR-10 Resource Level Tabs -->
-    <div x-show="activeTab === 'cifa10_10'" x-init="if(activeTab === 'cifa10_10') fetchModelReports('cifa10_10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
-    <div x-show="activeTab === 'cifa10_20'" x-init="if(activeTab === 'cifa10_20') fetchModelReports('cifa10_20')" x-html="document.getElementById('model-report-template').innerHTML"></div>
-    <div x-show="activeTab === 'cifa10_30'" x-init="if(activeTab === 'cifa10_30') fetchModelReports('cifa10_30')" x-html="document.getElementById('model-report-template').innerHTML"></div>
-    <div x-show="activeTab === 'cifa10_40'" x-init="if(activeTab === 'cifa10_40') fetchModelReports('cifa10_40')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar10_10'" x-init="if(activeTab === 'cifar10_10') fetchModelReports('cifar10_10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar10_20'" x-init="if(activeTab === 'cifar10_20') fetchModelReports('cifar10_20')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar10_30'" x-init="if(activeTab === 'cifar10_30') fetchModelReports('cifar10_30')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar10_40'" x-init="if(activeTab === 'cifar10_40') fetchModelReports('cifar10_40')" x-html="document.getElementById('model-report-template').innerHTML"></div>
     
     <!-- CIFAR-100 Base Model Tab -->
-    <div x-show="activeTab === 'cifa100'" x-init="if(activeTab === 'cifa100') fetchModelReports('cifa100')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar100'" x-init="if(activeTab === 'cifar100') fetchModelReports('cifar100')" x-html="document.getElementById('model-report-template').innerHTML"></div>
     
     <!-- CIFAR-100 Resource Level Tabs -->
-    <div x-show="activeTab === 'cifa100_10'" x-init="if(activeTab === 'cifa100_10') fetchModelReports('cifa100_10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
-    <div x-show="activeTab === 'cifa100_20'" x-init="if(activeTab === 'cifa100_20') fetchModelReports('cifa100_20')" x-html="document.getElementById('model-report-template').innerHTML"></div>
-    <div x-show="activeTab === 'cifa100_30'" x-init="if(activeTab === 'cifa100_30') fetchModelReports('cifa100_30')" x-html="document.getElementById('model-report-template').innerHTML"></div>
-    <div x-show="activeTab === 'cifa100_40'" x-init="if(activeTab === 'cifa100_40') fetchModelReports('cifa100_40')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar100_10'" x-init="if(activeTab === 'cifar100_10') fetchModelReports('cifar100_10')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar100_20'" x-init="if(activeTab === 'cifar100_20') fetchModelReports('cifar100_20')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar100_30'" x-init="if(activeTab === 'cifar100_30') fetchModelReports('cifar100_30')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar100_40'" x-init="if(activeTab === 'cifar100_40') fetchModelReports('cifar100_40')" x-html="document.getElementById('model-report-template').innerHTML"></div>
     
     <!-- CIFAR-100 Transfer Learning Tab -->
-    <div x-show="activeTab === 'cifa100_transfer'" x-init="if(activeTab === 'cifa100_transfer') fetchModelReports('cifa100_transfer')" x-html="document.getElementById('model-report-template').innerHTML"></div>
+    <div x-show="activeTab === 'cifar100_transfer'" x-init="if(activeTab === 'cifar100_transfer') fetchModelReports('cifar100_transfer')" x-html="document.getElementById('model-report-template').innerHTML"></div>
     
     <!-- CIFAR-10 Training Progress Tab -->
     <div x-show="activeTab === 'cifar10_training'" class="report-container">
@@ -573,7 +573,7 @@
       <div class="section">
         <h3>Detailed Training Progress</h3>
         <p class="info-message">This report is generated on-demand from the latest training data.</p>
-        <iframe src="generate_training_progress.php?model=cifa10" style="width: 100%; height: 800px; border: none;"></iframe>
+        <iframe src="generate_training_progress.php?model=cifar10" style="width: 100%; height: 800px; border: none;"></iframe>
       </div>
     </div>
     
@@ -599,7 +599,7 @@
       
       <div class="section">
         <h3>Transfer Learning Results</h3>
-        <iframe src="reports/cifa100_transfer/latest_test_report.html" style="width: 100%; height: 700px; border: none;"></iframe>
+        <iframe src="reports/cifar100_transfer/latest_test_report.html" style="width: 100%; height: 700px; border: none;"></iframe>
       </div>
     </div>
     
@@ -626,7 +626,7 @@
       <div class="section">
         <h3>Detailed Training Progress</h3>
         <p class="info-message">This report is generated on-demand from the latest training data.</p>
-        <iframe src="generate_training_progress.php?model=cifa100" style="width: 100%; height: 800px; border: none;"></iframe>
+        <iframe src="generate_training_progress.php?model=cifar100" style="width: 100%; height: 800px; border: none;"></iframe>
       </div>
     </div>
     
@@ -715,17 +715,17 @@
         
         getModelTitle(tab) {
           switch(tab) {
-            case 'cifa10': return 'CIFAR-10 Base Model';
-            case 'cifa10_10': return 'CIFAR-10 Sample Size 10%';
-            case 'cifa10_20': return 'CIFAR-10 Sample Size 20%';
-            case 'cifa10_30': return 'CIFAR-10 Sample Size 30%';
-            case 'cifa10_40': return 'CIFAR-10 Sample Size 40%';
-            case 'cifa100': return 'CIFAR-100 Base Model';
-            case 'cifa100_10': return 'CIFAR-100 Sample Size 10%';
-            case 'cifa100_20': return 'CIFAR-100 Sample Size 20%';
-            case 'cifa100_30': return 'CIFAR-100 Sample Size 30%';
-            case 'cifa100_40': return 'CIFAR-100 Sample Size 40%';
-            case 'cifa100_transfer': return 'CIFAR-100 Transfer Learning';
+            case 'cifar10': return 'CIFAR-10 Base Model';
+            case 'cifar10_10': return 'CIFAR-10 Sample Size 10%';
+            case 'cifar10_20': return 'CIFAR-10 Sample Size 20%';
+            case 'cifar10_30': return 'CIFAR-10 Sample Size 30%';
+            case 'cifar10_40': return 'CIFAR-10 Sample Size 40%';
+            case 'cifar100': return 'CIFAR-100 Base Model';
+            case 'cifar100_10': return 'CIFAR-100 Sample Size 10%';
+            case 'cifar100_20': return 'CIFAR-100 Sample Size 20%';
+            case 'cifar100_30': return 'CIFAR-100 Sample Size 30%';
+            case 'cifar100_40': return 'CIFAR-100 Sample Size 40%';
+            case 'cifar100_transfer': return 'CIFAR-100 Transfer Learning';
             default: return tab;
           }
         },
@@ -818,10 +818,10 @@
         
         createOrUpdateCharts(model) {
           // Chart IDs based on model
-          const lossChartId = model === 'cifa10' ? 'lossChart' : 
-                            model === 'cifa100' ? 'cifa100LossChart' : 'cifa100TransferLossChart';
-          const accChartId = model === 'cifa10' ? 'accuracyChart' : 
-                           model === 'cifa100' ? 'cifa100AccuracyChart' : 'cifa100TransferAccuracyChart';
+          const lossChartId = model === 'cifar10' ? 'lossChart' : 
+                            model === 'cifar100' ? 'cifar100LossChart' : 'cifar100TransferLossChart';
+          const accChartId = model === 'cifar10' ? 'accuracyChart' : 
+                           model === 'cifar100' ? 'cifar100AccuracyChart' : 'cifar100TransferAccuracyChart';
           
           // Destroy existing charts if they exist
           if (this.charts[lossChartId]) {
@@ -972,17 +972,17 @@
             case 'loss_modeling': return 'Loss Modeling';
             case 'meta_model_readme': return 'Meta-Model README';
             case 'license': return 'License';
-            case 'cifa10': return 'CIFAR-10 Base Model';
-            case 'cifa10_10': return 'CIFAR-10 Sample Size 10%';
-            case 'cifa10_20': return 'CIFAR-10 Sample Size 20%';
-            case 'cifa10_30': return 'CIFAR-10 Sample Size 30%';
-            case 'cifa10_40': return 'CIFAR-10 Sample Size 40%';
-            case 'cifa100': return 'CIFAR-100 Base Model';
-            case 'cifa100_10': return 'CIFAR-100 Sample Size 10%';
-            case 'cifa100_20': return 'CIFAR-100 Sample Size 20%';
-            case 'cifa100_30': return 'CIFAR-100 Sample Size 30%';
-            case 'cifa100_40': return 'CIFAR-100 Sample Size 40%';
-            case 'cifa100_transfer': return 'CIFAR-100 Transfer Learning';
+            case 'cifar10': return 'CIFAR-10 Base Model';
+            case 'cifar10_10': return 'CIFAR-10 Sample Size 10%';
+            case 'cifar10_20': return 'CIFAR-10 Sample Size 20%';
+            case 'cifar10_30': return 'CIFAR-10 Sample Size 30%';
+            case 'cifar10_40': return 'CIFAR-10 Sample Size 40%';
+            case 'cifar100': return 'CIFAR-100 Base Model';
+            case 'cifar100_10': return 'CIFAR-100 Sample Size 10%';
+            case 'cifar100_20': return 'CIFAR-100 Sample Size 20%';
+            case 'cifar100_30': return 'CIFAR-100 Sample Size 30%';
+            case 'cifar100_40': return 'CIFAR-100 Sample Size 40%';
+            case 'cifar100_transfer': return 'CIFAR-100 Transfer Learning';
             case 'training_reports': return 'Training Reports';
             case 'reports': return 'Additional Test Reports';
             default: return 'LossLandscapeProbe';
@@ -1097,7 +1097,7 @@
             });
           
           // Check if CIFAR-100 transfer report exists
-          fetch('reports/cifa100_transfer/latest_test_report.html', { method: 'HEAD' })
+          fetch('reports/cifar100_transfer/latest_test_report.html', { method: 'HEAD' })
             .then(res => {
               this.cifar100ReportExists = res.ok;
             })

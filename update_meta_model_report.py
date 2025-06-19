@@ -289,8 +289,8 @@ def generate_meta_model_report(log_file, output_path):
 
 if __name__ == "__main__":
     # Define the log file path and output path
-    log_file = "/home/peter/Projects/LossLandscapeProbe/reports/cifa10/cifar10_meta_model_10pct.log"
-    output_path = "/home/peter/Projects/LossLandscapeProbe/reports/cifa10/meta_model_report.html"
+    log_file = "/home/peter/Projects/LossLandscapeProbe/reports/cifar10/cifar10_meta_model_10pct.log"
+    output_path = "/home/peter/Projects/LossLandscapeProbe/reports/cifar10/meta_model_report.html"
     
     # Create the log file with the provided content for testing
     os.makedirs(os.path.dirname(log_file), exist_ok=True)

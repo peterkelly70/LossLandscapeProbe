@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meta-Model Training Progress (Base Model)</title>
+    <title>Meta-Model Training Progress (10%)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <meta http-equiv="refresh" content="60"><!-- Auto-refresh every 60 seconds -->
@@ -78,53 +78,25 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Meta-Model Training Progress (Base Model)</h1>
+            <h1>Meta-Model Training Progress (10%)</h1>
             <p class="lead">Visualizing the meta-model hyperparameter optimization process</p>
             
             <!-- Status Alert -->
-            <div class="alert alert-{'success' if status_display == 'COMPLETE' else 'info' if status_display == 'IN PROGRESS' else 'warning'} mb-4">
-                <h4 class="alert-heading">Status: IN PROGRESS</h4>
-                <p>Meta-model training is currently in progress. This report will automatically update as training progresses.</p>
-                <div class="progress mt-2">
-                    <div class="progress-bar {'bg-success' if status_display == 'COMPLETE' else 'bg-info' if status_display == 'IN PROGRESS' else 'bg-warning'}" 
-                         role="progressbar" 
-                         style="width: 0%;" 
-                         aria-valuenow="0" 
-                         aria-valuemin="0" 
-                         aria-valuemax="100">
-                        0%
+            <div class="alert alert-{'success' if status_display == 'COMPLETE' else 'warning' if status_display == 'IN PROGRESS' else 'danger'} mb-4">
+                <h4 class="alert-heading">Status: NOT STARTED</h4>
+                <p>Meta-model training is currently not started.</p>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        0.0%
                     </div>
                 </div>
-                <p class="mt-2 mb-0">Iterations: 0/6 | Configurations evaluated: 0/18</p>
+                <p class="mt-2 mb-0">Iterations: 0/3 | Configurations evaluated: 0/18</p>
+                <p class="text-muted"><small>This report will automatically refresh every 60 seconds to show the latest progress.</small></p>
             </div>
         </div>
 
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card bg-dark text-light mb-4">
-                    <div class="card-header">
-                        <h3>Meta-Model Training In Progress</h3>
-                    </div>
-                    <div class="card-body">
-                        <p>The meta-model training process is currently running. This report will automatically update as training progresses.</p>
-                        <p>The meta-model is exploring different hyperparameter configurations to find the optimal settings for training the model with Base Model of resources.</p>
-                        <h4>Expected Hyperparameters:</h4>
-                        <ul>
-                            <li>Number of channels</li>
-                            <li>Dropout rate</li>
-                            <li>Optimizer choice</li>
-                            <li>Learning rate</li>
-                            <li>Momentum</li>
-                            <li>Weight decay</li>
-                        </ul>
-                        <div class="alert alert-info">
-                            <strong>Note:</strong> This page will automatically refresh every 60 seconds to show the latest training progress.
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
         <div class="alert alert-info" role="alert">
             <h4 class="alert-heading">Meta-Model Training In Progress</h4>
             <p>The meta-model training is either in progress or has not yet generated configuration data.</p>

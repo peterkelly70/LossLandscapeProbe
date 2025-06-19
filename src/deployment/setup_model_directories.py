@@ -20,17 +20,17 @@ def setup_model_directories(project_dir, web_dir):
     
     # Model directories to create based on the memory structure
     model_dirs = [
-        'cifa10',        # Base CIFAR-10 model
-        'cifa100',       # Base CIFAR-100 model
-        'cifa10_10',     # CIFAR-10 with 10% resources
-        'cifa10_20',     # CIFAR-10 with 20% resources
-        'cifa10_30',     # CIFAR-10 with 30% resources
-        'cifa10_40',     # CIFAR-10 with 40% resources
-        'cifa100_10',    # CIFAR-100 with 10% resources
-        'cifa100_20',    # CIFAR-100 with 20% resources
-        'cifa100_30',    # CIFAR-100 with 30% resources
-        'cifa100_40',    # CIFAR-100 with 40% resources
-        'cifa100_transfer'  # CIFAR-100 transfer learning
+        'cifar10',        # Base CIFAR-10 model
+        'cifar100',       # Base CIFAR-100 model
+        'cifar10_10',     # CIFAR-10 with 10% resources
+        'cifar10_20',     # CIFAR-10 with 20% resources
+        'cifar10_30',     # CIFAR-10 with 30% resources
+        'cifar10_40',     # CIFAR-10 with 40% resources
+        'cifar100_10',    # CIFAR-100 with 10% resources
+        'cifar100_20',    # CIFAR-100 with 20% resources
+        'cifar100_30',    # CIFAR-100 with 30% resources
+        'cifar100_40',    # CIFAR-100 with 40% resources
+        'cifar100_transfer'  # CIFAR-100 transfer learning
     ]
     
     # Create each model directory in both project and web reports directories
@@ -108,4 +108,4 @@ def setup_model_directories(project_dir, web_dir):
     print("Training logs will be saved to both project and web directories.")
     print("Symbolic links created in project root for easy access.")
     print("\nIMPORTANT: Make sure your training scripts write to these log files directly.")
-    print("Example: /home/peter/Projects/LossLandscapeProbe/reports/cifa10/cifa10_training_log.txt")
+    print("Example: /home/peter/Projects/LossLandscapeProbe/reports/cifar10/cifar10_training_log.txt")

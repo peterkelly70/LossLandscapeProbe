@@ -40,8 +40,14 @@ if ($log_file === null) {
     $log_file = $possible_log_paths[0];
 }
 
-$output_path = $project_dir . '/reports/cifar10/meta_model_report.html';
-$web_output_path = __DIR__ . '/meta_model_report.html';
+// Determine the output paths based on the log file path
+if (strpos($log_file, 'cifar10_10') !== false) {
+    $output_path = $project_dir . '/reports/cifar10_10/meta_model_report.html';
+    $web_output_path = '/var/www/html/loss.computer-wizard.com.au/reports/cifar10_10/meta_model_report.html';
+} else {
+    $output_path = $project_dir . '/reports/cifar10/meta_model_report.html';
+    $web_output_path = '/var/www/html/loss.computer-wizard.com.au/reports/cifar10/meta_model_report.html';
+}
 
 // Check if refresh was requested
 $refresh = isset($_GET['refresh']) && $_GET['refresh'] === 'true';

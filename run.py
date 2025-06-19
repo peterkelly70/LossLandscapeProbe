@@ -764,52 +764,52 @@ def generate_all_reports():
         {
             "name": "CIFAR-10 Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa10", "--model", "cifar10_model_trained.pth"]
+            "args": ["--model-type", "cifar10", "--model", "cifar10_model_trained.pth"]
         },
         {
             "name": "CIFAR-10 Resource Level 10% Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa10_10", "--model", "cifar10_10_model_trained.pth"]
+            "args": ["--model-type", "cifar10_10", "--model", "cifar10_10_model_trained.pth"]
         },
         {
             "name": "CIFAR-10 Resource Level 20% Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa10_20", "--model", "cifar10_20_model_trained.pth"]
+            "args": ["--model-type", "cifar10_20", "--model", "cifar10_20_model_trained.pth"]
         },
         {
             "name": "CIFAR-10 Resource Level 30% Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa10_30", "--model", "cifar10_30_model_trained.pth"]
+            "args": ["--model-type", "cifar10_30", "--model", "cifar10_30_model_trained.pth"]
         },
         {
             "name": "CIFAR-10 Resource Level 40% Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa10_40", "--model", "cifar10_40_model_trained.pth"]
+            "args": ["--model-type", "cifar10_40", "--model", "cifar10_40_model_trained.pth"]
         },
         {
             "name": "CIFAR-100 Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa100", "--model", "cifar100_model_trained.pth"]
+            "args": ["--model-type", "cifar100", "--model", "cifar100_model_trained.pth"]
         },
         {
             "name": "CIFAR-100 Resource Level 10% Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa100_10", "--model", "cifar100_10_model_trained.pth"]
+            "args": ["--model-type", "cifar100_10", "--model", "cifar100_10_model_trained.pth"]
         },
         {
             "name": "CIFAR-100 Resource Level 20% Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa100_20", "--model", "cifar100_20_model_trained.pth"]
+            "args": ["--model-type", "cifar100_20", "--model", "cifar100_20_model_trained.pth"]
         },
         {
             "name": "CIFAR-100 Resource Level 30% Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa100_30", "--model", "cifar100_30_model_trained.pth"]
+            "args": ["--model-type", "cifar100_30", "--model", "cifar100_30_model_trained.pth"]
         },
         {
             "name": "CIFAR-100 Resource Level 40% Test Report",
             "script": "src/visualization/generate_test_report.py",
-            "args": ["--model-type", "cifa100_40", "--model", "cifar100_40_model_trained.pth"]
+            "args": ["--model-type", "cifar100_40", "--model", "cifar100_40_model_trained.pth"]
         },
         {
             "name": "CIFAR-100 Transfer Report",

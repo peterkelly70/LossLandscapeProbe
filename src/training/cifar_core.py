@@ -285,8 +285,8 @@ def run_meta_optimization(dataset_name, sample_size, num_iterations=DEFAULT_NUM_
             'train_loss': train_loss
         }
     
-    # Setup logging to the appropriate report directory
-    model_type = f"cifa{num_classes}" if sample_size == 1.0 else f"cifa{num_classes}_{int(sample_size*100)}"
+    # Setup logging to the appropriate report directory with correct naming (cifar not cifa)
+    model_type = f"cifar{num_classes}" if sample_size == 1.0 else f"cifar{num_classes}_{int(sample_size*100)}"
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     reports_dir = os.path.join(project_root, "reports", model_type)
     os.makedirs(reports_dir, exist_ok=True)
@@ -294,10 +294,27 @@ def run_meta_optimization(dataset_name, sample_size, num_iterations=DEFAULT_NUM_
     # Define log file path in the reports directory
     log_file_path = os.path.join(reports_dir, f"{dataset_name}_meta_model_{int(sample_size*100)}pct.log")
     
-    # Add file handler to logger
+    # Add file handler to logger for project directory
     file_handler = logging.FileHandler(log_file_path, mode='w')
     file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
     logger.addHandler(file_handler)
+    
+    # Also log to web server directory if it exists
+    web_server_dir = "/var/www/html/loss.computer-wizard.com.au/reports"
+    web_model_dir = os.path.join(web_server_dir, f"{model_type}")
+    
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(web_model_dir, exist_ok=True)
+        web_log_path = os.path.join(web_model_dir, f"{dataset_name}_meta_model_{int(sample_size*100)}pct.log")
+        
+        # Add another file handler for web server directory
+        web_file_handler = logging.FileHandler(web_log_path, mode='w')
+        web_file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+        logger.addHandler(web_file_handler)
+        logger.info(f"Also logging to web server at {web_log_path}")
+    except Exception as e:
+        logger.warning(f"Could not set up logging to web server: {e}")
     
     logger.info(f"Meta-model log will be saved to {log_file_path}")
     
@@ -309,8 +326,15 @@ def run_meta_optimization(dataset_name, sample_size, num_iterations=DEFAULT_NUM_
         measure_flatness=True  # Measure loss landscape flatness
     )
     
-    # Remove the file handler after meta-optimization
+    # Remove the file handlers after meta-optimization
     logger.removeHandler(file_handler)
+    
+    # Also remove web server file handler if it was added
+    try:
+        if 'web_file_handler' in locals():
+            logger.removeHandler(web_file_handler)
+    except Exception as e:
+        logger.warning(f"Error removing web server file handler: {e}")
     
     logger.info(f"Best configuration found: {best_config}")
     return best_config

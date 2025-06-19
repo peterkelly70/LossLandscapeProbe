@@ -1,33 +1,64 @@
-<!DOCTYPE html>
+#!/usr/bin/env python3
+"""
+Generate placeholder report files for all model types with the dark gray/blue theme.
+"""
+
+import os
+import sys
+from datetime import datetime
+
+def generate_placeholder_report(output_path, model_type, report_type="test"):
+    """Generate a placeholder report with the dark gray/blue theme."""
+    
+    # Format the model type for display
+    display_model_type = model_type.replace("_", " ").upper()
+    
+    # Determine report title based on report type
+    if report_type == "test":
+        report_title = f"{display_model_type} Test Report"
+        report_description = "test results"
+        report_content = "This report shows test results and model performance metrics."
+    elif report_type == "meta":
+        report_title = f"{display_model_type} Meta-Model Report"
+        report_description = "meta-model training and hyperparameter optimization results"
+        report_content = "This report shows the meta-model training and hyperparameter optimization results."
+    else:
+        report_title = f"{display_model_type} Report"
+        report_description = "model information"
+        report_content = "This report shows detailed model information and analysis."
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CIFAR10 20 Test Report (Placeholder)</title>
+    <title>{report_title} (Placeholder)</title>
     <style>
-        body {
+        body {{
             padding: 20px;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background-color: #111;
             color: #eee;
             line-height: 1.6;
-        }
-        .container {
+        }}
+        .container {{
             max-width: 1200px;
             margin: 0 auto;
-        }
-        h1, h2, h3, h4, h5, h6 {
+        }}
+        h1, h2, h3, h4, h5, h6 {{
             color: #4cf;
-        }
-        .header {
+        }}
+        .header {{
             margin-bottom: 30px;
             border-bottom: 1px solid #333;
             padding-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-        .status {
+        }}
+        .status {{
             display: inline-block;
             padding: 5px 10px;
             border-radius: 4px;
@@ -35,83 +66,83 @@
             background-color: #264c73;
             color: #4cf;
             margin-left: 10px;
-        }
-        .card {
+        }}
+        .card {{
             background-color: #222;
             border-radius: 8px;
             padding: 20px;
             margin-bottom: 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             border: 1px solid #333;
-        }
-        .placeholder {
+        }}
+        .placeholder {{
             background-color: #1a1a1a;
             border-radius: 8px;
             padding: 30px;
             text-align: center;
             border: 1px solid #333;
             margin: 40px 0;
-        }
-        .note {
+        }}
+        .note {{
             color: #f88;
             background-color: #2a1a1a;
             padding: 15px;
             border-radius: 8px;
             margin-top: 20px;
             border: 1px solid #533;
-        }
-        .footer {
+        }}
+        .footer {{
             margin-top: 30px;
             padding-top: 10px;
             border-top: 1px solid #333;
             font-size: 12px;
             color: #777;
-        }
-        .navigation {
+        }}
+        .navigation {{
             background-color: #222;
             padding: 10px 0;
             margin-bottom: 20px;
             border-radius: 8px;
-        }
-        .navigation ul {
+        }}
+        .navigation ul {{
             list-style: none;
             padding: 0;
             margin: 0;
             display: flex;
             justify-content: center;
-        }
-        .navigation li {
+        }}
+        .navigation li {{
             margin: 0 10px;
-        }
-        .navigation a {
+        }}
+        .navigation a {{
             color: #eee;
             text-decoration: none;
             padding: 5px 10px;
             border-radius: 4px;
-        }
-        .navigation a:hover {
+        }}
+        .navigation a:hover {{
             background-color: #333;
-        }
-        .navigation a.active {
+        }}
+        .navigation a.active {{
             background-color: #264c73;
             color: #4cf;
-        }
-        .expected-content {
+        }}
+        .expected-content {{
             background-color: #1a2a3a;
             border-left: 4px solid #3498db;
             padding: 15px;
             margin: 20px 0;
             border-radius: 4px;
-        }
-        .expected-content h3 {
+        }}
+        .expected-content h3 {{
             margin-top: 0;
             color: #4cf;
-        }
-        .expected-content ul {
+        }}
+        .expected-content ul {{
             margin-bottom: 0;
             padding-left: 20px;
-        }
-        .refresh-button {
+        }}
+        .refresh-button {{
             background-color: #264c73;
             color: #4cf;
             border: none;
@@ -122,10 +153,10 @@
             border: 1px solid #4cf;
             text-decoration: none;
             display: inline-block;
-        }
-        .refresh-button:hover {
+        }}
+        .refresh-button:hover {{
             background-color: #1a3a5a;
-        }
+        }}
     </style>
 </head>
 <body>
@@ -141,22 +172,22 @@
         </div>
         
         <div class="header">
-            <h1>CIFAR10 20 Test Report <span class="status">PENDING</span></h1>
+            <h1>{report_title} <span class="status">PENDING</span></h1>
             <div>
-                <p>Generated on: 20250619_041302</p>
+                <p>Generated on: {timestamp}</p>
                 <a href="?refresh=true" class="refresh-button">Refresh Data</a>
             </div>
         </div>
         
         <div class="card">
             <h2>Report Information</h2>
-            <p>This report shows test results and model performance metrics.</p>
+            <p>{report_content}</p>
         </div>
         
         <div class="placeholder">
             <h2>No trained model available</h2>
             <p>This is a placeholder report. No trained model was found at the expected location.</p>
-            <p>To generate a complete report, please train a model first using the CIFAR10 20 training scripts.</p>
+            <p>To generate a complete report, please train a model first using the {display_model_type} training scripts.</p>
         </div>
         
         <div class="expected-content">
@@ -180,4 +211,50 @@
         </div>
     </div>
 </body>
-</html>
+</html>"""
+    
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    # Write the HTML content to the file
+    with open(output_path, 'w') as f:
+        f.write(html_content)
+    
+    print(f"Generated placeholder report at {output_path}")
+
+def main():
+    # Define model types
+    model_types = [
+        "cifar10", 
+        "cifar10_10", 
+        "cifar10_20", 
+        "cifar10_30", 
+        "cifar10_40",
+        "cifar100", 
+        "cifar100_10", 
+        "cifar100_20", 
+        "cifar100_30", 
+        "cifar100_40",
+        "cifar100_transfer"
+    ]
+    
+    # Get the project root directory
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+    
+    # Generate test report placeholders for all model types
+    for model_type in model_types:
+        # Test reports
+        output_dir = os.path.join(project_root, "reports", model_type)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        test_report_path = os.path.join(output_dir, "latest_test_report.html")
+        generate_placeholder_report(test_report_path, model_type, "test")
+        
+        # Meta-model reports
+        meta_report_path = os.path.join(output_dir, "meta_model_report.html")
+        generate_placeholder_report(meta_report_path, model_type, "meta")
+    
+    print("All placeholder reports generated successfully.")
+
+if __name__ == "__main__":
+    main()

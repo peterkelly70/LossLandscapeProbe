@@ -1,28 +1,183 @@
-
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>CIFAR-10 Test Report (Placeholder)</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            h1, h2 { color: #333; }
-            .placeholder { background-color: #f8f9fa; padding: 20px; border-radius: 5px; text-align: center; }
-            .note { color: #721c24; background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-top: 20px; }
-        </style>
-    </head>
-    <body>
-        <h1>CIFAR-10 Test Report (Placeholder)</h1>
-        <p>Generated on: 20250618_133215</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIFAR100 Test Report (Placeholder)</title>
+    <style>
+        body {
+            padding: 20px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #111;
+            color: #eee;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #4cf;
+        }
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            background-color: #264c73;
+            color: #4cf;
+            margin-left: 10px;
+        }
+        .card {
+            background-color: #222;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            border: 1px solid #333;
+        }
+        .placeholder {
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            border: 1px solid #333;
+            margin: 40px 0;
+        }
+        .note {
+            color: #f88;
+            background-color: #2a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid #533;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 10px;
+            border-top: 1px solid #333;
+            font-size: 12px;
+            color: #777;
+        }
+        .navigation {
+            background-color: #222;
+            padding: 10px 0;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        .navigation ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+        }
+        .navigation li {
+            margin: 0 10px;
+        }
+        .navigation a {
+            color: #eee;
+            text-decoration: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+        .navigation a:hover {
+            background-color: #333;
+        }
+        .navigation a.active {
+            background-color: #264c73;
+            color: #4cf;
+        }
+        .expected-content {
+            background-color: #1a2a3a;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .expected-content h3 {
+            margin-top: 0;
+            color: #4cf;
+        }
+        .expected-content ul {
+            margin-bottom: 0;
+            padding-left: 20px;
+        }
+        .refresh-button {
+            background-color: #264c73;
+            color: #4cf;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            border: 1px solid #4cf;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .refresh-button:hover {
+            background-color: #1a3a5a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="navigation">
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="cifar10_progress.html">CIFAR-10 Progress</a></li>
+                <li><a href="cifar100_progress.html">CIFAR-100 Progress</a></li>
+                <li><a href="meta_model_progress.php">Meta-Model Progress</a></li>
+                <li><a href="about.html">About</a></li>
+            </ul>
+        </div>
+        
+        <div class="header">
+            <h1>CIFAR100 Test Report <span class="status">PENDING</span></h1>
+            <div>
+                <p>Generated on: 20250619_041302</p>
+                <a href="?refresh=true" class="refresh-button">Refresh Data</a>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Report Information</h2>
+            <p>This report shows test results and model performance metrics.</p>
+        </div>
         
         <div class="placeholder">
             <h2>No trained model available</h2>
             <p>This is a placeholder report. No trained model was found at the expected location.</p>
-            <p>To generate a complete report, please train a model first using the CIFAR-10 training scripts.</p>
+            <p>To generate a complete report, please train a model first using the CIFAR100 training scripts.</p>
+        </div>
+        
+        <div class="expected-content">
+            <h3>Expected Content</h3>
+            <p>When training is complete, this report will include:</p>
+            <ul>
+                <li>Model architecture details</li>
+                <li>Training performance metrics</li>
+                <li>Accuracy and loss visualizations</li>
+                <li>Sample predictions and analysis</li>
+            </ul>
         </div>
         
         <div class="note">
             <p><strong>Note:</strong> Once training is complete, run the report generation again to see model performance and predictions.</p>
         </div>
-    </body>
-    </html>
-    
+        
+        <div class="footer">
+            <p>Generated by LossLandscapeProbe Framework v1.0.0</p>
+            <p><a href="https://loss.computer-wizard.com.au" style="color: #4cf;">https://loss.computer-wizard.com.au</a></p>
+        </div>
+    </div>
+</body>
+</html>

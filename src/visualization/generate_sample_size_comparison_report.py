@@ -275,14 +275,82 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
         a:hover {{
             color: #6df;
         }}
+        .navigation {{
+            background-color: #222;
+            padding: 10px 0;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }}
+        .navigation ul {{
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+        }}
+        .navigation li {{
+            margin: 0 10px;
+        }}
+        .navigation a {{
+            color: #eee;
+            text-decoration: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }}
+        .navigation a:hover {{
+            background-color: #333;
+        }}
+        .navigation a.active {{
+            background-color: #264c73;
+            color: #4cf;
+        }}
+        .refresh-button {{
+            background-color: #264c73;
+            color: #4cf;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            border: 1px solid #4cf;
+            text-decoration: none;
+            display: inline-block;
+        }}
+        .refresh-button:hover {{
+            background-color: #1a3a5a;
+        }}
+        .status {{
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            background-color: #264c73;
+            color: #4cf;
+            margin-left: 10px;
+        }}
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="navigation">
+            <ul>
+                <li><a href="index.html">Home</a></li>
+                <li><a href="cifar10_progress.html">CIFAR-10 Progress</a></li>
+                <li><a href="cifar100_progress.html">CIFAR-100 Progress</a></li>
+                <li><a href="meta_model_progress.php">Meta-Model Progress</a></li>
+                <li><a href="about.html">About</a></li>
+            </ul>
+        </div>
+        
         <div class="header">
-            <h1>{dataset_display} Sample Size Comparison</h1>
-            <p class="lead">Comparing meta-model performance across different resource levels</p>
-            <p>Generated on: {timestamp}</p>
+            <div>
+                <h1>{dataset_display} Sample Size Comparison <span class="status">COMPLETE</span></h1>
+                <p class="lead">Comparing meta-model performance across different resource levels</p>
+            </div>
+            <div>
+                <p>Generated on: {timestamp}</p>
+                <a href="?refresh=true" class="refresh-button">Refresh Data</a>
+            </div>
         </div>
         
         <div class="row">
@@ -292,7 +360,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
             </div>
         </div>
         
-        <div class="plot-container">
+        <div class="plot">
             <div class="row">
                 <div class="col-md-12">
                     <h3>Test Accuracy vs Sample Size</h3>
@@ -302,7 +370,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
             </div>
         </div>
         
-        <div class="plot-container">
+        <div class="plot">
             <div class="row">
                 <div class="col-md-12">
                     <h3>Training Time vs Sample Size</h3>
@@ -312,7 +380,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
             </div>
         </div>
         
-        <div class="plot-container">
+        <div class="plot">
             <div class="row">
                 <div class="col-md-12">
                     <h3>Training Efficiency vs Sample Size</h3>

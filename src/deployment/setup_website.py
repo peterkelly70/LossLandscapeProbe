@@ -335,9 +335,9 @@ def cleanup_old_reports(web_dir):
             print(f"Found {len(timestamped_reports)} old timestamped reports to clean up")
             
             # Create model directories if they don't exist
-            model_dirs = ['cifa10', 'cifa10_10', 'cifa10_20', 'cifa10_30', 'cifa10_40',
-                         'cifa100', 'cifa100_10', 'cifa100_20', 'cifa100_30', 'cifa100_40',
-                         'cifa100_transfer']
+            model_dirs = ['cifar10', 'cifar10_10', 'cifar10_20', 'cifar10_30', 'cifar10_40',
+                         'cifar100', 'cifar100_10', 'cifar100_20', 'cifar100_30', 'cifar100_40',
+                         'cifar100_transfer']
             
             for model_dir in model_dirs:
                 model_report_dir = os.path.join(web_dir, 'reports', model_dir)
@@ -358,10 +358,10 @@ def cleanup_old_reports(web_dir):
 def update_test_report_headings(web_dir):
     """Update the headings in all test report HTML files to show sample size."""
     try:
-        # Find all model directories
-        model_dirs = ['cifa10', 'cifa10_10', 'cifa10_20', 'cifa10_30', 'cifa10_40',
-                     'cifa100', 'cifa100_10', 'cifa100_20', 'cifa100_30', 'cifa100_40',
-                     'cifa100_transfer']
+        # Find all model directories - use correct naming (cifar not cifa)
+        model_dirs = ['cifar10', 'cifar10_10', 'cifar10_20', 'cifar10_30', 'cifar10_40',
+                     'cifar100', 'cifar100_10', 'cifar100_20', 'cifar100_30', 'cifar100_40',
+                     'cifar100_transfer']
         
         updated_count = 0
         for model_dir in model_dirs:
@@ -396,33 +396,18 @@ def update_test_report_headings(web_dir):
             except Exception as e:
                 print(f"Warning: Could not update {model_dir}/latest_test_report.html: {e}")
         
-        # Also check for any old-style reports in the web directory
+        # Remove any old timestamped test report files in the web directory
         old_reports = [f for f in os.listdir(web_dir) 
-                      if f.startswith(('cifar10_test_report', 'cifar100_test_report')) 
-                      and f.endswith('.html')]
+                      if re.match(r'cifar\d+_test_report_\d+\.html', f)]
         
         for report_file in old_reports:
             report_path = os.path.join(web_dir, report_file)
             try:
-                # Read the file content
-                with open(report_path, 'r') as f:
-                    content = f.read()
-                
-                # Check if it needs updating (to avoid unnecessary writes)
-                if '<h2>Test Images and Predictions</h2>' in content:
-                    # Replace the heading
-                    updated_content = content.replace(
-                        '<h2>Test Images and Predictions</h2>',
-                        '<h2>Test Images and Predictions (200/10000)</h2>'
-                    )
-                    
-                    # Write the updated content back to the file
-                    with open(report_path, 'w') as f:
-                        f.write(updated_content)
-                    print(f"Updated heading in {report_file}")
-                    updated_count += 1
+                # Remove the old timestamped file
+                os.remove(report_path)
+                print(f"Removed old timestamped report: {report_file}")
             except Exception as e:
-                print(f"Warning: Could not process {report_file}: {e}")
+                print(f"Warning: Could not remove old report {report_file}: {e}")
         
         if updated_count > 0:
             print(f"Updated {updated_count} test report files.")
@@ -523,11 +508,21 @@ def generate_reports(project_dir):
                     sample_size = int(match.group(2))
                     
                     print(f"Processing meta-model log for {dataset} at {sample_size}% resource level...")
-                    meta_model_script = os.path.join(project_dir, 'generate_meta_model_report.py')
+                    meta_model_script = os.path.join(project_dir, 'src', 'visualization', 'generate_meta_model_report.py')
+                    # Construct paths for log file and output files
+                    log_file = os.path.join(web_dir, 'reports', f'{dataset}_{sample_size}' if sample_size < 100 else dataset, f'{dataset}_meta_model_{sample_size}pct.log')
+                    output_path = os.path.join(project_dir, 'reports', f'{dataset}_{sample_size}' if sample_size < 100 else dataset, 'meta_model_report.html')
+                    web_output_path = os.path.join(web_dir, 'reports', f'{dataset}_{sample_size}' if sample_size < 100 else dataset, 'meta_model_report.html')
+                    
+                    # Ensure directories exist
+                    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                    os.makedirs(os.path.dirname(web_output_path), exist_ok=True)
+                    
                     result = subprocess.run(
                         [sys.executable, meta_model_script, 
-                         '--dataset', dataset, 
-                         '--sample_size', str(sample_size/100)], 
+                         '--log-file', log_file,
+                         '--output', output_path,
+                         '--web-output', web_output_path], 
                         cwd=project_dir, check=False
                     )
                     
@@ -623,9 +618,9 @@ def main():
             print(f"Note: {script} not found at {php_script_path}.")
     
     # Copy CIFAR-100 transfer report if it exists
-    cifar100_report_dir = os.path.join(project_dir, 'reports', 'cifa100_transfer')
+    cifar100_report_dir = os.path.join(project_dir, 'reports', 'cifar100_transfer')
     cifar100_report_path = os.path.join(cifar100_report_dir, 'latest_test_report.html')
-    web_cifar100_report_dir = os.path.join(web_dir, 'reports', 'cifa100_transfer')
+    web_cifar100_report_dir = os.path.join(web_dir, 'reports', 'cifar100_transfer')
     os.makedirs(web_cifar100_report_dir, exist_ok=True)
     web_cifar100_report_path = os.path.join(web_cifar100_report_dir, 'latest_test_report.html')
     
@@ -639,7 +634,7 @@ def main():
     # Copy specific progress reports to web directory for direct access
     # Check multiple possible locations for CIFAR-10 progress report
     cifar10_progress_report_paths = [
-        os.path.join(project_dir, 'reports', 'cifa10', 'cifar10_progress_report.html'),
+        os.path.join(project_dir, 'reports', 'cifar10', 'cifar10_progress_report.html'),
         os.path.join(project_dir, 'cifar10_progress_report.html'),
         os.path.join(project_dir, 'reports', 'cifar10_progress_report.html')
     ]
@@ -685,7 +680,7 @@ def main():
     
     # Check multiple possible locations for CIFAR-100 progress report
     cifar100_progress_report_paths = [
-        os.path.join(project_dir, 'reports', 'cifa100', 'cifar100_progress_report.html'),
+        os.path.join(project_dir, 'reports', 'cifar100', 'cifar100_progress_report.html'),
         os.path.join(project_dir, 'cifar100_progress_report.html'),
         os.path.join(project_dir, 'reports', 'cifar100_progress_report.html')
     ]

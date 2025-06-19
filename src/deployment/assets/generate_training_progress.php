@@ -17,7 +17,7 @@ $model = isset($_GET['model']) ? $_GET['model'] : '';
 // Validate model parameter
 if (empty($model)) {
     // Default to CIFAR-10 if no model specified
-    $model = 'cifa10';
+    $model = 'cifar10';
 }
 
 // Sanitize model parameter to prevent directory traversal
@@ -111,25 +111,25 @@ foreach ($lines as $line) {
 $model_display = str_replace('_', ' ', $model);
 $model_display = ucfirst($model_display);
 
-// If model has a resource level (e.g., cifa10_10), extract and format it
+// If model has a resource level (e.g., cifar10_10), extract and format it
 if (strpos($model, '_') !== false) {
     $parts = explode('_', $model);
     $base_model = $parts[0];
     $resource_level = $parts[1];
     
     // Format base model name
-    if ($base_model == 'cifa10') {
+    if ($base_model == 'cifar10') {
         $base_model = 'CIFAR-10';
-    } elseif ($base_model == 'cifa100') {
+    } elseif ($base_model == 'cifar100') {
         $base_model = 'CIFAR-100';
     }
     
     $model_display = "$base_model ($resource_level% Resource Level)";
 } else {
     // Format base model name
-    if ($model == 'cifa10') {
+    if ($model == 'cifar10') {
         $model_display = 'CIFAR-10 (100% Resource Level)';
-    } elseif ($model == 'cifa100') {
+    } elseif ($model == 'cifar100') {
         $model_display = 'CIFAR-100 (100% Resource Level)';
     }
 }
