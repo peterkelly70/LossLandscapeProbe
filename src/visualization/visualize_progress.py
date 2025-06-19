@@ -328,7 +328,7 @@ def main():
         log_path = str(sorted(log_files, key=os.path.getmtime, reverse=True)[0])
         logger.info(f"Using most recent log file: {log_path}")
     
-    # Determine dataset and resource level
+    # Determine dataset and sample percentage
     if args.dataset and args.sample_size:
         dataset = args.dataset
         sample_size = args.sample_size

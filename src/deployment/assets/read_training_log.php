@@ -43,26 +43,54 @@ if ($log_type === 'training') {
     } elseif ($model === 'cifar100_transfer') {
         $log_file = 'cifar100_transfer.log';
     } else {
-        // For resource level models, use the base model log with resource level
+        // For sample percentage models, use the base model log with sample percentage
         if (strpos($model, 'cifar10') === 0) {
             $base = 'cifar10';
-            $resource_level = substr($model, 6); // Extract the resource level (e.g., 10, 20)
-            $log_file = $base . '_training_' . $resource_level . 'pct.log';
             
-            // Also check for meta-model logs
-            if (isset($_GET['meta_model']) && $_GET['meta_model'] === 'true') {
-                $log_file = $base . '_meta_model_' . $resource_level . 'pct.log';
-                $meta_model_log = true;
+            // Check if this is a sample percentage model
+            if (preg_match('/cifar10_sample(\d+)pct/', $model, $matches)) {
+                $sample_pct = $matches[1]; // Extract the sample percentage (e.g., 10, 20)
+                $log_file = $base . '_training_sample' . $sample_pct . 'pct.log';
+                
+                // Also check for meta-model logs
+                if (isset($_GET['meta_model']) && $_GET['meta_model'] === 'true') {
+                    $log_file = $base . '_meta_model_sample' . $sample_pct . 'pct.log';
+                    $meta_model_log = true;
+                }
+            } else {
+                // For backward compatibility with old naming convention
+                $resource_level = substr($model, 6); // Extract the resource level (e.g., 10, 20)
+                $log_file = $base . '_training_' . $resource_level . 'pct.log';
+                
+                // Also check for meta-model logs
+                if (isset($_GET['meta_model']) && $_GET['meta_model'] === 'true') {
+                    $log_file = $base . '_meta_model_' . $resource_level . 'pct.log';
+                    $meta_model_log = true;
+                }
             }
         } else {
             $base = 'cifar100';
-            $resource_level = substr($model, 7); // Extract the resource level (e.g., 10, 20)
-            $log_file = $base . '_training_' . $resource_level . 'pct.log';
             
-            // Also check for meta-model logs
-            if (isset($_GET['meta_model']) && $_GET['meta_model'] === 'true') {
-                $log_file = $base . '_meta_model_' . $resource_level . 'pct.log';
-                $meta_model_log = true;
+            // Check if this is a sample percentage model
+            if (preg_match('/cifar100_sample(\d+)pct/', $model, $matches)) {
+                $sample_pct = $matches[1]; // Extract the sample percentage (e.g., 10, 20)
+                $log_file = $base . '_training_sample' . $sample_pct . 'pct.log';
+                
+                // Also check for meta-model logs
+                if (isset($_GET['meta_model']) && $_GET['meta_model'] === 'true') {
+                    $log_file = $base . '_meta_model_sample' . $sample_pct . 'pct.log';
+                    $meta_model_log = true;
+                }
+            } else {
+                // For backward compatibility with old naming convention
+                $resource_level = substr($model, 7); // Extract the resource level (e.g., 10, 20)
+                $log_file = $base . '_training_' . $resource_level . 'pct.log';
+                
+                // Also check for meta-model logs
+                if (isset($_GET['meta_model']) && $_GET['meta_model'] === 'true') {
+                    $log_file = $base . '_meta_model_' . $resource_level . 'pct.log';
+                    $meta_model_log = true;
+                }
             }
         }
     }

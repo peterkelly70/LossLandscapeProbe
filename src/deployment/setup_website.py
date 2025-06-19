@@ -6,6 +6,7 @@ Setup script to copy necessary files to the web server directory for the LossLan
 import os
 import sys
 import json
+import glob
 import shutil
 import re
 import subprocess
@@ -417,7 +418,7 @@ def update_test_report_headings(web_dir):
         print(f"Warning: Could not update test report headings: {e}")
 
 
-def generate_reports(project_dir):
+def generate_reports(project_dir, web_dir):
     """Generate all reports before deployment."""
     print("\n=== Generating Reports ===")
     
@@ -457,11 +458,43 @@ def generate_reports(project_dir):
         print(f"Note: Could not run CIFAR-100 transfer report script: {e}")
         print("This is expected if the CIFAR-100 transfer experiment is still running.")
     
-    # Generate CIFAR-10 progress report if log exists
+    # Generate CIFAR-10 progress reports for each sample percentage
+    print("\nChecking for CIFAR-10 training logs in sample percentage directories...")
+    cifar10_logs_found = False
+    
+    # Check for training logs in reports subdirectories
+    reports_dir = os.path.join(project_dir, 'reports')
+    if os.path.exists(reports_dir):
+        for subdir in os.listdir(reports_dir):
+            # Match directories like cifar10_10, cifar10_20, cifar10_sample10pct, etc.
+            if subdir.startswith('cifar10_') or subdir == 'cifar10':
+                subdir_path = os.path.join(reports_dir, subdir)
+                if os.path.isdir(subdir_path):
+                    # Look for training log files with various naming patterns
+                    # Include both old naming convention (cifa) and new naming convention (cifar)
+                    for log_pattern in ['*training*log*', '*cifar10*log*', '*cifa10*log*']:
+                        training_logs = glob.glob(os.path.join(subdir_path, log_pattern))
+                        for log_path in training_logs:
+                            if os.path.isfile(log_path) and os.path.getsize(log_path) > 0:
+                                cifar10_logs_found = True
+                                try:
+                                    print(f"\nGenerating training progress report for {subdir}...")
+                                    cifar10_progress_script = os.path.join(project_dir, 'src', 'visualization', 'visualize_cifar10_progress.py')
+                                    result = subprocess.run([sys.executable, cifar10_progress_script, '--log', log_path, '--output-dir', subdir_path], 
+                                                          cwd=project_dir, check=False)
+                                    if result.returncode == 0:
+                                        print(f"Training progress report for {subdir} generated successfully.")
+                                    else:
+                                        print(f"Warning: Training progress report generation for {subdir} may have encountered issues.")
+                                except Exception as e:
+                                    print(f"Error: Could not run training progress script for {subdir}: {e}")
+    
+    # Also check the traditional location
     cifar10_log_path = os.path.join(project_dir, 'cifar10_training.log')
-    if os.path.exists(cifar10_log_path):
+    if os.path.exists(cifar10_log_path) and os.path.getsize(cifar10_log_path) > 0:
+        cifar10_logs_found = True
         try:
-            print("\nGenerating CIFAR-10 training progress report...")
+            print("\nGenerating CIFAR-10 training progress report from main log...")
             cifar10_progress_script = os.path.join(project_dir, 'src', 'visualization', 'visualize_cifar10_progress.py')
             result = subprocess.run([sys.executable, cifar10_progress_script, '--log', cifar10_log_path], cwd=project_dir, check=False)
             if result.returncode == 0:
@@ -470,49 +503,114 @@ def generate_reports(project_dir):
                 print("Warning: CIFAR-10 training progress report generation may have encountered issues.")
         except Exception as e:
             print(f"Error: Could not run CIFAR-10 training progress script: {e}")
-    else:
-        print("\nNote: CIFAR-10 training log not found. Skipping progress report generation.")
+    
+    if not cifar10_logs_found:
+        print("\nNote: No CIFAR-10 training logs found. Skipping progress report generation.")
         
-    # Generate CIFAR-100 progress report if log exists
+    # Generate CIFAR-100 progress reports for each sample percentage
+    print("\nChecking for CIFAR-100 training logs in sample percentage directories...")
+    cifar100_logs_found = False
+    
+    # Check for training logs in reports subdirectories
+    reports_dir = os.path.join(project_dir, 'reports')
+    if os.path.exists(reports_dir):
+        for subdir in os.listdir(reports_dir):
+            # Match directories like cifar100_10, cifar100_20, cifar100_sample10pct, etc.
+            if subdir.startswith('cifar100_') or subdir == 'cifar100':
+                subdir_path = os.path.join(reports_dir, subdir)
+                if os.path.isdir(subdir_path):
+                    # Look for training log files with various naming patterns
+                    # Include both old naming convention (cifa) and new naming convention (cifar)
+                    for log_pattern in ['*training*log*', '*cifar100*log*', '*cifa100*log*']:
+                        training_logs = glob.glob(os.path.join(subdir_path, log_pattern))
+                        for log_path in training_logs:
+                            if os.path.isfile(log_path) and os.path.getsize(log_path) > 0:
+                                cifar100_logs_found = True
+                                try:
+                                    print(f"\nGenerating training progress report for {subdir}...")
+                                    cifar100_progress_script = os.path.join(project_dir, 'src', 'visualization', 'visualize_cifar100_progress.py')
+                                    result = subprocess.run([sys.executable, cifar100_progress_script, '--log', log_path, '--output-dir', subdir_path], 
+                                                          cwd=project_dir, check=False)
+                                    if result.returncode == 0:
+                                        print(f"Training progress report for {subdir} generated successfully.")
+                                    else:
+                                        print(f"Warning: Training progress report generation for {subdir} may have encountered issues.")
+                                except Exception as e:
+                                    print(f"Error: Could not run training progress script for {subdir}: {e}")
+    
+    # Also check the traditional location for transfer learning
     cifar100_log_path = os.path.join(project_dir, 'cifar100_transfer.log')
-    if os.path.exists(cifar100_log_path):
+    if os.path.exists(cifar100_log_path) and os.path.getsize(cifar100_log_path) > 0:
+        cifar100_logs_found = True
         try:
-            print("\nGenerating CIFAR-100 training progress report...")
+            print("\nGenerating CIFAR-100 transfer training progress report...")
             cifar100_progress_script = os.path.join(project_dir, 'src', 'visualization', 'visualize_cifar100_progress.py')
             result = subprocess.run([sys.executable, cifar100_progress_script, '--log', cifar100_log_path], cwd=project_dir, check=False)
             if result.returncode == 0:
-                print("CIFAR-100 training progress report generated successfully.")
+                print("CIFAR-100 transfer training progress report generated successfully.")
             else:
-                print("Warning: CIFAR-100 training progress report generation may have encountered issues.")
+                print("Warning: CIFAR-100 transfer training progress report generation may have encountered issues.")
         except Exception as e:
-            print(f"Error: Could not run CIFAR-100 training progress script: {e}")
-    else:
-        print("\nNote: CIFAR-100 training log not found. Skipping progress report generation.")
+            print(f"Error: Could not run CIFAR-100 transfer training progress script: {e}")
+    
+    if not cifar100_logs_found:
+        print("\nNote: No CIFAR-100 training logs found. Skipping progress report generation.")
     
     # Check for meta-model logs and generate reports
     meta_model_logs = []
+    
+    # Check in both logs directory and reports directories
     logs_dir = os.path.join(project_dir, 'logs')
+    reports_dir = os.path.join(project_dir, 'reports')
+    
+    # First check in logs directory
     if os.path.exists(logs_dir):
         for file in os.listdir(logs_dir):
-            if re.match(r'.+_meta_model_\d+pct\.log$', file):
+            # Match both old naming convention and new sample percentage naming convention
+            if re.match(r'.+_meta_model_\d+pct\.log$', file) or re.match(r'.+_meta_model_sample\d+pct\.log$', file):
                 meta_model_logs.append(os.path.join(logs_dir, file))
+    
+    # Then check in reports subdirectories
+    if os.path.exists(reports_dir):
+        for subdir in os.listdir(reports_dir):
+            subdir_path = os.path.join(reports_dir, subdir)
+            if os.path.isdir(subdir_path):
+                for file in os.listdir(subdir_path):
+                    if re.match(r'.+_meta_model_\d+pct\.log$', file) or re.match(r'.+_meta_model_sample\d+pct\.log$', file):
+                        meta_model_logs.append(os.path.join(subdir_path, file))
     
     if meta_model_logs:
         try:
             print("\nGenerating Meta-Model training progress reports...")
             for log_path in meta_model_logs:
                 # Extract dataset and sample size from filename
-                match = re.match(r'(.+)_meta_model_(\d+)pct\.log$', os.path.basename(log_path))
+                # Try new naming convention first
+                match = re.match(r'(.+)_meta_model_sample(\d+)pct\.log$', os.path.basename(log_path))
+                if not match:
+                    # Try old naming convention
+                    match = re.match(r'(.+)_meta_model_(\d+)pct\.log$', os.path.basename(log_path))
+                
                 if match:
                     dataset = match.group(1)
                     sample_size = int(match.group(2))
                     
-                    print(f"Processing meta-model log for {dataset} at {sample_size}% resource level...")
+                    print(f"Processing meta-model log for {dataset} at {sample_size}% sample percentage...")
                     meta_model_script = os.path.join(project_dir, 'src', 'visualization', 'generate_meta_model_report.py')
-                    # Construct paths for log file and output files
-                    log_file = os.path.join(web_dir, 'reports', f'{dataset}_{sample_size}' if sample_size < 100 else dataset, f'{dataset}_meta_model_{sample_size}pct.log')
-                    output_path = os.path.join(project_dir, 'reports', f'{dataset}_{sample_size}' if sample_size < 100 else dataset, 'meta_model_report.html')
-                    web_output_path = os.path.join(web_dir, 'reports', f'{dataset}_{sample_size}' if sample_size < 100 else dataset, 'meta_model_report.html')
+                    # Use the actual log file path that was found
+                    log_file = log_path
+                    
+                    # Determine the appropriate directory name based on the sample size
+                    if sample_size < 100:
+                        # Try new naming convention first
+                        dir_name = f'{dataset}_sample{sample_size}pct'
+                        if not os.path.exists(os.path.join(project_dir, 'reports', dir_name)):
+                            # Fall back to old naming convention
+                            dir_name = f'{dataset}_{sample_size}'
+                    else:
+                        dir_name = dataset
+                    
+                    output_path = os.path.join(project_dir, 'reports', dir_name, 'meta_model_report.html')
+                    web_output_path = os.path.join(web_dir, 'reports', dir_name, 'meta_model_report.html')
                     
                     # Ensure directories exist
                     os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -527,9 +625,9 @@ def generate_reports(project_dir):
                     )
                     
                     if result.returncode == 0:
-                        print(f"Meta-model report for {dataset} {sample_size}% generated successfully.")
+                        print(f"Meta-model report for {dataset} {sample_size}% sample percentage generated successfully.")
                     else:
-                        print(f"Warning: Meta-model report generation for {dataset} {sample_size}% may have encountered issues.")
+                        print(f"Warning: Meta-model report generation for {dataset} {sample_size}% sample percentage may have encountered issues.")
         except Exception as e:
             print(f"Error: Could not run meta-model report generation: {e}")
     else:
@@ -575,12 +673,16 @@ def main():
         except Exception as e:
             print(f"Warning: Could not update config file: {e}")
     
+    # Initialize tracking variables for log detection
+    global cifar10_logs_found, cifar100_logs_found
+    cifar10_logs_found = False
+    cifar100_logs_found = False
     
     print(f"Project directory: {project_dir}")
     print(f"Web directory: {web_dir}")
     
     # Generate all reports first
-    generate_reports(project_dir)
+    generate_reports(project_dir, web_dir)
     
     # Ensure web directory exists
     os.makedirs(web_dir, exist_ok=True)
@@ -651,6 +753,12 @@ def main():
     if not cifar10_report_found:
         # Generate a placeholder progress report for CIFAR-10
         placeholder_path = os.path.join(web_dir, 'cifar10_progress_report.html')
+        
+        # Check if we found any training logs earlier
+        training_status_message = "Training is complete, but no visualization report was generated."
+        if not cifar10_logs_found:
+            training_status_message = "Training is currently in progress. This report will be updated when training data becomes available."
+        
         with open(placeholder_path, 'w') as f:
             cifar10_progress_html = f'''
 <!DOCTYPE html>
@@ -670,8 +778,8 @@ def main():
         </ul>
     </div>
     <div class="message">
-        <p>Training is currently in progress. This report will be updated when training data becomes available.</p>
-        <p>Check back later for visualizations of the training progress.</p>
+        <p>{training_status_message}</p>
+        <p>Check the reports directory for raw training logs or run the visualization script manually.</p>
     </div>
 </body>
 </html>'''
@@ -697,6 +805,12 @@ def main():
     if not cifar100_report_found:
         # Generate a placeholder progress report for CIFAR-100
         placeholder_path = os.path.join(web_dir, 'cifar100_progress_report.html')
+        
+        # Check if we found any training logs earlier
+        training_status_message = "Training is complete, but no visualization report was generated."
+        if not cifar100_logs_found:
+            training_status_message = "Training is currently in progress. This report will be updated when training data becomes available."
+        
         with open(placeholder_path, 'w') as f:
             cifar100_progress_html = f'''
 <!DOCTYPE html>
@@ -716,8 +830,8 @@ def main():
         </ul>
     </div>
     <div class="message">
-        <p>Training is currently in progress. This report will be updated when training data becomes available.</p>
-        <p>Check back later for visualizations of the training progress.</p>
+        <p>{training_status_message}</p>
+        <p>Check the reports directory for raw training logs or run the visualization script manually.</p>
     </div>
 </body>
 </html>'''

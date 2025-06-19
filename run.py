@@ -89,12 +89,14 @@ EXAMPLES = {
                         "description": "Multiple Passes with 10/20/30/40% Dataset Slices to Train Meta-Model",
                         "script": "src/training/unified_cifar_training.py",
                         "args": [
-                            {"name": "--dataset", "help": "Dataset to use", "default": "cifar10", "type": "str"},
-                            {"name": "--mode", "help": "Training mode", "default": "multisize", "type": "str"},
-                            {"name": "--epochs", "help": "Number of epochs", "default": "100", "type": "int"},
-                            {"name": "--batch-size", "help": "Batch size", "default": "128", "type": "int"},
-                            {"name": "--num-iterations", "help": "Number of meta-model iterations", "default": "3", "type": "int"},
-                            {"name": "--num-configs", "help": "Number of configurations per iteration", "default": "10", "type": "int"}
+                            {"name": "--dataset", "help": "Dataset to use", "default": "cifar10", "type": "str", "preselected": True},
+                            {"name": "--mode", "help": "Training mode", "default": "multisize", "type": "str", "preselected": True},
+                            {"name": "--epochs", "help": "Number of epochs", "default": "100", "type": "int", "preselected": True},
+                            {"name": "--batch-size", "help": "Batch size", "default": "128", "type": "int", "preselected": True},
+                            {"name": "--num-iterations", "help": "Number of meta-model iterations", "default": "3", "type": "int", "preselected": True},
+                            {"name": "--num-configs", "help": "Number of configurations per iteration", "default": "10", "type": "int", "preselected": True},
+                            {"name": "--max-training-hours", "help": "Maximum training time in hours (0 = no limit)", "default": "0", "type": "float", "preselected": True},
+                            {"name": "--gpu-memory-fraction", "help": "Fraction of GPU memory to use (0.0-1.0)", "default": "0.9", "type": "float", "preselected": True}
                         ]
                     },
                     "sample_size_10": {

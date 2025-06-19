@@ -4,7 +4,7 @@ Generate Resource Comparison Report
 ==================================
 
 This script generates an HTML report comparing the results of training with
-different resource levels. It visualizes the relationship between resource
+different sample percentages. It visualizes the relationship between sample
 levels and model performance, showing how the meta-model approach performs
 with different dataset sizes.
 """
@@ -33,10 +33,10 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 
 
 def generate_comparison_plots(data, output_dir):
-    """Generate plots comparing results across resource levels.
+    """Generate plots comparing results across sample percentages.
     
     Args:
-        data: Dictionary with results for each resource level
+        data: Dictionary with results for each sample percentage
         output_dir: Directory to save the plots
         
     Returns:
@@ -45,7 +45,7 @@ def generate_comparison_plots(data, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     plot_files = {}
     
-    # Extract resource levels and convert to percentages for display
+    # Extract sample percentages for display
     sample_sizes = sorted([float(level) for level in data.keys()])
     resource_percentages = [int(level * 100) for level in sample_sizes]
     
@@ -131,15 +131,15 @@ def generate_comparison_plots(data, output_dir):
 
 
 def generate_hyperparameter_comparison_table(data):
-    """Generate an HTML table comparing hyperparameters across resource levels.
+    """Generate an HTML table comparing hyperparameters across sample percentages.
     
     Args:
-        data: Dictionary with results for each resource level
+        data: Dictionary with results for each sample percentage
         
     Returns:
         HTML string with the comparison table
     """
-    # Extract resource levels and sort them
+    # Extract sample percentages and sort them
     sample_sizes = sorted([float(level) for level in data.keys()])
     
     # Get all unique hyperparameter keys
@@ -156,7 +156,7 @@ def generate_hyperparameter_comparison_table(data):
     html += '    <tr>\n'
     html += '      <th>Hyperparameter</th>\n'
     
-    # Add column headers for each resource level
+    # Add column headers for each sample percentage
     for level in sample_sizes:
         html += f'      <th>{int(level * 100)}%</th>\n'
     
@@ -169,7 +169,7 @@ def generate_hyperparameter_comparison_table(data):
         html += '    <tr>\n'
         html += f'      <td><strong>{param}</strong></td>\n'
         
-        # Add values for each resource level
+        # Add values for each sample percentage
         for level in sample_sizes:
             level_str = str(level)
             value = data[level_str]['best_config'].get(param, 'N/A')
@@ -188,7 +188,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
     
     Args:
         dataset_name: Name of the dataset (cifar10 or cifar100)
-        data: Dictionary with results for each resource level
+        data: Dictionary with results for each sample percentage
         plot_files: Dictionary with paths to the generated plots
         timestamp: Timestamp for the report
         
@@ -345,7 +345,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
         <div class="header">
             <div>
                 <h1>{dataset_display} Sample Size Comparison <span class="status">COMPLETE</span></h1>
-                <p class="lead">Comparing meta-model performance across different resource levels</p>
+                <p class="lead">Comparing meta-model performance across different sample percentages</p>
             </div>
             <div>
                 <p>Generated on: {timestamp}</p>
@@ -356,7 +356,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
         <div class="row">
             <div class="col-12">
                 <h2>Performance Metrics</h2>
-                <p>The following plots show how model performance varies with different resource levels (percentage of training data used).</p>
+                <p>The following plots show how model performance varies with different sample percentages (percentage of training data used).</p>
             </div>
         </div>
         
@@ -365,7 +365,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
                 <div class="col-md-12">
                     <h3>Test Accuracy vs Sample Size</h3>
                     <img src="{os.path.basename(plot_files['accuracy'])}" alt="Accuracy vs Sample Size" class="img-fluid">
-                    <p class="mt-2">This plot shows how test accuracy changes with different resource levels.</p>
+                    <p class="mt-2">This plot shows how test accuracy changes with different sample percentages.</p>
                 </div>
             </div>
         </div>
@@ -375,7 +375,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
                 <div class="col-md-12">
                     <h3>Training Time vs Sample Size</h3>
                     <img src="{os.path.basename(plot_files['time'])}" alt="Training Time vs Sample Size" class="img-fluid">
-                    <p class="mt-2">This plot shows how training time changes with different resource levels.</p>
+                    <p class="mt-2">This plot shows how training time changes with different sample percentages.</p>
                 </div>
             </div>
         </div>
@@ -385,7 +385,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
                 <div class="col-md-12">
                     <h3>Training Efficiency vs Sample Size</h3>
                     <img src="{os.path.basename(plot_files['efficiency'])}" alt="Efficiency vs Sample Size" class="img-fluid">
-                    <p class="mt-2">This plot shows the efficiency (accuracy per second) for different resource levels.</p>
+                    <p class="mt-2">This plot shows the efficiency (accuracy per second) for different sample percentages.</p>
                 </div>
             </div>
         </div>
@@ -394,7 +394,7 @@ def generate_html_report(dataset_name, data, plot_files, timestamp, output_path=
             <div class="row">
                 <div class="col-12">
                     <h2>Hyperparameter Comparison</h2>
-                    <p>The table below shows the best hyperparameters found by the meta-model for each resource level.</p>
+                    <p>The table below shows the best hyperparameters found by the meta-model for each sample percentage.</p>
                     {hyperparameter_table}
                 </div>
             </div>

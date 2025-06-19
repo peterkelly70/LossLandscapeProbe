@@ -346,7 +346,7 @@ class MetaProbing(TwoTierProbing):
             
             # Evaluate each configuration
             for i, config in enumerate(current_configs):
-                logger.info(f"Evaluating configuration {i+1}/{len(current_configs)} at resource level {current_resource:.2f}")
+                logger.info(f"Evaluating configuration {i+1}/{len(current_configs)} at sample percentage {current_resource:.2f}")
                 eval_result = self.train_and_evaluate(
                     config=config,
                     resource=current_resource,

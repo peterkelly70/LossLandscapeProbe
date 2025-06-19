@@ -75,10 +75,10 @@ def save_result_to_file(dataset_name, sample_size, result_data):
     Returns:
         Path to the saved file
     """
-    # Create the model-specific directory in reports
+    # Create the model-specific directory in reports using sample size in the name
     model_type = f"cifa{10 if dataset_name == 'cifar10' else 100}"
     if sample_size < 1.0:
-        model_type = f"{model_type}_{int(sample_size*100)}"
+        model_type = f"{model_type}_{int(sample_size*100)}"  # e.g., cifa10_10 for 10% sample size
     
     reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "reports")
     model_reports_dir = os.path.join(reports_dir, model_type)
@@ -112,9 +112,132 @@ def save_result_to_file(dataset_name, sample_size, result_data):
     return result_file
 
 
+def train_cifar(dataset='cifar10', mode='single', sample_size=0.1, epochs=DEFAULT_EPOCHS,
+                batch_size=DEFAULT_BATCH_SIZE, num_iterations=DEFAULT_NUM_ITERATIONS,
+                num_configs=DEFAULT_NUM_CONFIGS, max_training_hours=24.0):
+    """
+    Unified function to train CIFAR models with different configurations.
+    
+    Args:
+        dataset: 'cifar10' or 'cifar100'
+        mode: 'single', 'comparison', or 'multisize'
+        sample_size: Sample size as a fraction (0.0-1.0) for single mode
+        epochs: Number of training epochs
+        batch_size: Batch size for training
+        num_iterations: Number of meta-model iterations
+        num_configs: Number of configurations to try per iteration
+        max_training_hours: Maximum training time in hours (default: 6)
+        
+    Returns:
+        Training results or None if training failed
+    """
+    # Set up CUDA memory management
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    import gc
+    gc.collect()
+    
+    # Log initial memory usage
+    def log_memory_usage():
+        if torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated() / 1024**2
+            reserved = torch.cuda.memory_reserved() / 1024**2
+            logger.info(f"GPU Memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
+    
+    logger.info("Starting training with memory usage:")
+    log_memory_usage()
+    
+    # Track start time for timeout
+    start_time = time.time()
+    max_training_seconds = max_training_hours * 3600
+    
+    try:
+    
+        if mode in ['comparison', 'multisize']:
+            # For comparison/multisize mode, use the run_sample_size_comparison function
+            sample_sizes = DEFAULT_SAMPLE_SIZES if mode == 'multisize' else [float(s) for s in sample_size.split(',')]
+            logger.info(f"Running in {mode} mode with sample sizes: {sample_sizes}")
+            
+            # Calculate remaining time for the entire comparison
+            elapsed = time.time() - start_time
+            remaining_time = max(0, max_training_seconds - elapsed)
+            
+            if remaining_time <= 0:
+                raise TimeoutError("Maximum training time reached before starting comparison")
+            
+            results = run_sample_size_comparison(
+                dataset_name=dataset,
+                sample_sizes=sample_sizes,
+                epochs=epochs,
+                batch_size=batch_size,
+                num_iterations=num_iterations,
+                num_configs=num_configs,
+                max_training_hours=remaining_time/3600  # Convert to hours
+            )
+            return results
+            
+        else:  # single mode
+            # For single mode, just train one model with the specified sample size
+            logger.info(f"Running in single mode with sample size: {sample_size}")
+            
+            # Calculate remaining time for meta-optimization
+            elapsed = time.time() - start_time
+            remaining_time = max(0, max_training_seconds - elapsed)
+            
+            if remaining_time <= 0:
+                raise TimeoutError("Maximum training time reached before starting meta-optimization")
+            
+            # Allocate 1/3 of remaining time to meta-optimization, 2/3 to final training
+            meta_time = remaining_time / 3
+            
+            logger.info(f"Starting meta-optimization with max time: {meta_time/3600:.1f} hours")
+            best_config = run_meta_optimization(
+                dataset_name=dataset,
+                sample_size=sample_size,
+                num_iterations=num_iterations,
+                num_configs=num_configs,
+                max_training_hours=meta_time/3600
+            )
+            
+            # Calculate remaining time for final training
+            elapsed = time.time() - start_time
+            remaining_time = max(0, max_training_seconds - elapsed)
+            
+            if remaining_time <= 0:
+                raise TimeoutError("Maximum training time reached before starting final training")
+            
+            logger.info(f"Starting final training with max time: {remaining_time/3600:.1f} hours")
+            
+            # Train the final model with the best configuration
+            result = train_and_evaluate(
+                config=best_config,
+                dataset_name=dataset,
+                epochs=epochs,
+                batch_size=batch_size,
+                sample_size=sample_size,
+                max_training_time=remaining_time
+            )
+            
+            return result
+            
+    except Exception as e:
+        logger.error(f"Training failed with error: {str(e)}")
+        logger.exception("Error details:")
+        
+        # Log memory usage on error
+        if torch.cuda.is_available():
+            logger.error("Memory usage at time of error:")
+            log_memory_usage()
+        
+        # Re-raise the exception to be handled by the caller
+        raise
+
+
 def run_sample_size_comparison(dataset_name, sample_sizes=DEFAULT_SAMPLE_SIZES, 
                                epochs=DEFAULT_EPOCHS, batch_size=DEFAULT_BATCH_SIZE,
-                               num_iterations=DEFAULT_NUM_ITERATIONS, num_configs=DEFAULT_NUM_CONFIGS):
+                               num_iterations=DEFAULT_NUM_ITERATIONS, num_configs=DEFAULT_NUM_CONFIGS,
+                               max_training_hours=6.0):
     """Run a comparison of different sample sizes for meta-model training.
     
     Args:
@@ -124,6 +247,7 @@ def run_sample_size_comparison(dataset_name, sample_sizes=DEFAULT_SAMPLE_SIZES,
         batch_size: Batch size for training
         num_iterations: Number of meta-model iterations
         num_configs: Number of configurations to try per iteration
+        max_training_hours: Maximum training time in hours (default: 6)
         
     Returns:
         Dictionary with results for each sample size
@@ -216,6 +340,10 @@ def main():
                         help='Number of epochs for final training')
     parser.add_argument('--batch-size', type=int, default=DEFAULT_BATCH_SIZE,
                         help='Batch size for training')
+    parser.add_argument('--max-training-hours', type=float, default=24.0,
+                        help='Maximum training time in hours (default: 24, set to 0 for no limit)')
+    parser.add_argument('--gpu-memory-fraction', type=float, default=0.9,
+                        help='Fraction of GPU memory to use (0.0-1.0, default: 0.9)')
     
     # Reporting options
     parser.add_argument('--skip-reports', action='store_true',
@@ -238,30 +366,30 @@ def main():
             epochs=args.epochs,
             batch_size=args.batch_size,
             num_iterations=args.num_iterations,
-            num_configs=args.num_configs
+            num_configs=args.num_configs,
+            max_training_hours=args.max_training_hours
         )
     else:  # single mode
-        # Run meta-model optimization to find the best hyperparameters
-        best_config = run_meta_optimization(
-            args.dataset,
-            args.sample_size,
-            num_iterations=args.num_iterations,
-            num_configs=args.num_configs
-        )
-        
-        # Train a full model with the best hyperparameters
-        eval_result = train_and_evaluate(
-            best_config,
-            args.dataset,
+        # Train a model with the current sample size
+        result = train_cifar(
+            dataset=args.dataset,
+            mode=args.mode,
+            sample_size=args.sample_size,
             epochs=args.epochs,
             batch_size=args.batch_size,
-            sample_size=1.0  # Use full dataset for final training
+            num_iterations=args.num_iterations,
+            num_configs=args.num_configs,
+            max_training_hours=args.max_training_hours
         )
+        
+        if result is None:
+            logger.error(f"Training failed for sample size {args.sample_size}")
+            return
         
         # Prepare results dictionary
         result_data = {
-            'best_config': best_config,
-            'eval_result': eval_result,
+            'best_config': result['best_config'],
+            'eval_result': result['eval_result'],
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         

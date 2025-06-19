@@ -51,13 +51,13 @@ DEFAULT_NUM_CONFIGS = 10    # Number of configurations to try per iteration
 DEFAULT_TOTAL_CONFIGS = DEFAULT_NUM_ITERATIONS * DEFAULT_NUM_CONFIGS
 
 
-def parse_meta_model_log(log_file=None, model_type=None, resource_level=None):
+def parse_meta_model_log(log_file=None, model_type=None, sample_pct=None):
     """Parse the meta-model training log to extract configurations and performance.
     
     Args:
         log_file: Path to the meta-model log file. If None, will search in default locations.
         model_type: Type of model (cifar10 or cifar100)
-        resource_level: Resource level (10, 20, 30, 40, or None for base model)
+        sample_pct: Sample percentage (10, 20, 30, 40, or None for full dataset)
         
     Returns:
         Dictionary with parsed data
@@ -70,20 +70,20 @@ def parse_meta_model_log(log_file=None, model_type=None, resource_level=None):
         'performances': [],
         'sharpness_values': [],
         'robustness_values': [],
-        'resource_level': resource_level
+        'sample_pct': sample_pct
     }
     if log_file is None:
         # Try to find the log file in default locations
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
-        # Determine model type and resource level from output path if not provided
+        # Determine model type and sample percentage from output path if not provided
         if model_type is None:
             model_type = "cifar10"  # Default to cifar10
         
-        # Format the log file name based on model type and resource level
-        if resource_level:
-            log_file_name = f"{model_type}_meta_model_{resource_level}pct.log"
-            dir_name = f"{model_type}_{resource_level}"
+        # Format the log file name based on model type and sample percentage
+        if sample_pct:
+            log_file_name = f"{model_type}_meta_model_sample{sample_pct}pct.log"
+            dir_name = f"{model_type}_sample{sample_pct}pct"
         else:
             # For base model or transfer learning
             if model_type == "cifar100_transfer":
@@ -194,7 +194,7 @@ def parse_meta_model_log(log_file=None, model_type=None, resource_level=None):
     # Regular expressions for parsing
     iteration_regex = re.compile(r'Meta-optimization iteration (\d+)/(\d+)')
     config_regex = re.compile(r'Configuration (\d+): (\{.*\})')
-    evaluating_regex = re.compile(r'Evaluating configuration (\d+)/(\d+) at resource level ([0-9.]+)')
+    evaluating_regex = re.compile(r'Evaluating configuration (\d+)/(\d+) at sample percentage ([0-9.]+)')
     sharpness_regex = re.compile(r'Sharpness: ([0-9.]+), Perturbation Robustness: ([0-9.]+)')
     performance_regex = re.compile(r'Added training example with performance ([0-9.]+)')
     best_config_regex = re.compile(r'Best configuration from iteration (\d+): (\{.*\})')
@@ -233,12 +233,12 @@ def parse_meta_model_log(log_file=None, model_type=None, resource_level=None):
                 try:
                     config_idx = int(evaluating_match.group(1)) - 1  # 0-indexed internally
                     total_configs = int(evaluating_match.group(2))
-                    resource_level = float(evaluating_match.group(3))
+                    sample_pct = float(evaluating_match.group(3))
                     
                     # Create a placeholder config
                     config = {
                         "config_id": config_idx + 1,
-                        "resource_level": resource_level
+                        "sample_pct": sample_pct
                     }
                     current_configs.append(config)
                     
@@ -801,22 +801,34 @@ def generate_html_report(info, output_path, web_output_path=None):
         iteration_progress = 0
         status_display = 'IN PROGRESS'
         
-        # Get resource level from the info dictionary or output path
-        if info and 'resource_level' in info:
-            resource_level = f"{info['resource_level']}%" if isinstance(info['resource_level'], (int, float)) else str(info['resource_level'])
+        # Get sample percentage from the info dictionary or output path
+        if info and 'sample_pct' in info:
+            sample_percentage = f"{info['sample_pct']}%" if isinstance(info['sample_pct'], (int, float)) else str(info['sample_pct'])
+        elif info and 'resource_level' in info:  # For backward compatibility
+            sample_percentage = f"{info['resource_level']}%" if isinstance(info['resource_level'], (int, float)) else str(info['resource_level'])
         elif output_path:
-            if '_10' in output_path:
-                resource_level = '10%'
+            # Check for new naming convention first
+            if 'sample10pct' in output_path:
+                sample_percentage = '10%'
+            elif 'sample20pct' in output_path:
+                sample_percentage = '20%'
+            elif 'sample30pct' in output_path:
+                sample_percentage = '30%'
+            elif 'sample40pct' in output_path:
+                sample_percentage = '40%'
+            # Check for old naming convention for backward compatibility
+            elif '_10' in output_path:
+                sample_percentage = '10%'
             elif '_20' in output_path:
-                resource_level = '20%'
+                sample_percentage = '20%'
             elif '_30' in output_path:
-                resource_level = '30%'
+                sample_percentage = '30%'
             elif '_40' in output_path:
-                resource_level = '40%'
+                sample_percentage = '40%'
             else:
-                resource_level = 'Base Model'
+                sample_percentage = 'Full Dataset'
         else:
-            resource_level = 'Base Model'
+            sample_percentage = 'Full Dataset'
     elif info and 'iterations' in info and info['iterations']:
         # We have actual log data
         current_iteration = len(info['iterations'])
@@ -832,11 +844,13 @@ def generate_html_report(info, output_path, web_output_path=None):
         progress_percent = (configurations_evaluated / total_configurations) * 100 if total_configurations > 0 else 0
         iteration_progress = (current_iteration / total_iterations) * 100 if total_iterations > 0 else 0
         
-        # Get resource level from the info dictionary
-        if info and 'resource_level' in info:
-            resource_level = f"{info['resource_level']}%" if isinstance(info['resource_level'], (int, float)) else str(info['resource_level'])
+        # Get sample percentage from the info dictionary
+        if info and 'sample_pct' in info:
+            sample_percentage = f"{info['sample_pct']}%" if isinstance(info['sample_pct'], (int, float)) else str(info['sample_pct'])
+        elif info and 'resource_level' in info:  # For backward compatibility
+            sample_percentage = f"{info['resource_level']}%" if isinstance(info['resource_level'], (int, float)) else str(info['resource_level'])
         else:
-            resource_level = 'Base Model'
+            sample_percentage = 'Full Dataset'
         
         # Determine status
         if current_iteration >= total_iterations:
@@ -853,20 +867,30 @@ def generate_html_report(info, output_path, web_output_path=None):
         iteration_progress = 0
         status_display = 'NOT STARTED'
         
-        # Try to determine resource level from output path
+        # Try to determine sample percentage from output path
         if output_path:
-            if '_10' in output_path:
-                resource_level = '10%'
+            # Check for new naming convention first
+            if 'sample10pct' in output_path:
+                sample_percentage = '10%'
+            elif 'sample20pct' in output_path:
+                sample_percentage = '20%'
+            elif 'sample30pct' in output_path:
+                sample_percentage = '30%'
+            elif 'sample40pct' in output_path:
+                sample_percentage = '40%'
+            # Check for old naming convention for backward compatibility
+            elif '_10' in output_path:
+                sample_percentage = '10%'
             elif '_20' in output_path:
-                resource_level = '20%'
+                sample_percentage = '20%'
             elif '_30' in output_path:
-                resource_level = '30%'
+                sample_percentage = '30%'
             elif '_40' in output_path:
-                resource_level = '40%'
+                sample_percentage = '40%'
             else:
-                resource_level = 'Base Model'
+                sample_percentage = 'Full Dataset'
         else:
-            resource_level = 'Base Model'
+            sample_percentage = 'Full Dataset'
             
         status = 'PENDING'
     
@@ -876,7 +900,7 @@ def generate_html_report(info, output_path, web_output_path=None):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meta-Model Training Progress ({resource_level})</title>
+    <title>Meta-Model Training Progress ({sample_percentage})</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <meta http-equiv="refresh" content="60"><!-- Auto-refresh every 60 seconds -->
@@ -951,7 +975,7 @@ def generate_html_report(info, output_path, web_output_path=None):
 <body>
     <div class="container">
         <div class="header">
-            <h1>Meta-Model Training Progress ({resource_level})</h1>
+            <h1>Meta-Model Training Progress ({sample_percentage})</h1>
             <p class="lead">Visualizing the meta-model hyperparameter optimization process</p>
             
             <!-- Status Alert -->
@@ -982,7 +1006,7 @@ def generate_html_report(info, output_path, web_output_path=None):
                     </div>
                     <div class="card-body">
                         <p>The meta-model training process is currently running. This report will automatically update as training progresses.</p>
-                        <p>The meta-model is exploring different hyperparameter configurations to find the optimal settings for training the model with {resource_level} of resources.</p>
+                        <p>The meta-model is exploring different hyperparameter configurations to find the optimal settings for training the model with {sample_percentage} of the dataset.</p>
                         <h4>Expected Hyperparameters:</h4>
                         <ul>
                             <li>Number of channels</li>
@@ -1059,7 +1083,7 @@ def generate_html_report(info, output_path, web_output_path=None):
                         <thead>
                             <tr>
                                 <th>Config</th>
-                                <th>Resource Level</th>
+                                <th>Sample Percentage</th>
                                 <th>Sharpness</th>
                                 <th>Robustness</th>
                                 <th>Performance</th>
@@ -1076,7 +1100,7 @@ def generate_html_report(info, output_path, web_output_path=None):
                 else:
                     perf_html = str(performance)
                 
-                # Get the resource level
+                # Get the sample percentage
                 resource_level = config.get('resource_level', 'N/A')
                 if isinstance(resource_level, float):
                     resource_html = f"{resource_level:.2f}"
@@ -1233,30 +1257,37 @@ def generate_html_report(info, output_path, web_output_path=None):
 def main():
     """Main entry point for the script."""
     parser = argparse.ArgumentParser(description='Generate meta-model training report')
+    sample_pct = None
     parser.add_argument('--log-file', type=str, help='Path to meta-model log file')
     parser.add_argument('--output', type=str, required=True, help='Output HTML file path')
     parser.add_argument('--web-output', type=str, help='Output HTML file path for web server')
     parser.add_argument('--model-type', type=str, help='Model type (cifar10 or cifar100)')
-    parser.add_argument('--resource-level', type=str, help='Resource level (10, 20, 30, 40, or 100)')
+    parser.add_argument('--sample-pct', type=str, help='Sample percentage (10, 20, 30, 40, or 100)')
     parser.add_argument('--num-iterations', type=int, default=3, 
                         help='Number of iterations for placeholder reports (default: 3)')
     parser.add_argument('--num-configs', type=int, default=5, 
                         help='Number of configurations per iteration for placeholder reports (default: 5)')
     args = parser.parse_args()
     
-    # Extract model type and resource level from output path
+    # Extract model type and sample percentage from output path
     model_type = None
     resource_level = None
     
-    # Try to determine model type and resource level from output path
+    # Try to determine model type and sample percentage from output path
     if args.output:
-        # Extract model type and resource level from output path using regex
+        # Extract model type and sample percentage from output path using regex
         output_path = args.output
-        model_match = re.search(r'reports/(cifar\d+)(?:_(\d+))?(?:_transfer)?', output_path)
+        # Match both old naming convention (cifar10_10) and new naming convention (cifar10_sample10pct)
+        model_match = re.search(r'reports/(cifar\d+)(?:_(\d+)|_sample(\d+)pct)?(?:_transfer)?', output_path)
         if model_match:
             model_type = model_match.group(1)
+            # Extract sample percentage from either old or new naming convention
             if model_match.group(2):
-                resource_level = int(model_match.group(2))
+                # Old naming convention: cifar10_10
+                sample_pct = int(model_match.group(2))
+            elif model_match.group(3):
+                # New naming convention: cifar10_sample10pct
+                sample_pct = int(model_match.group(3))
             
             # Check for transfer learning
             if 'transfer' in output_path:
@@ -1274,8 +1305,17 @@ def main():
             
             if not args.output:
                 # Default output path in project directory
-                if model_type and resource_level:
-                    args.output = os.path.join(project_dir, 'reports', f'{model_type}_{resource_level}', 'meta_model_report.html')
+                if model_type and sample_pct:
+                    # Use the appropriate directory format based on the sample percentage
+                    if sample_pct < 100:
+                        # Try new naming convention first
+                        dir_name = f'{model_type}_sample{sample_pct}pct'
+                        if not os.path.exists(os.path.join(project_dir, 'reports', dir_name)):
+                            # Fall back to old naming convention
+                            dir_name = f'{model_type}_{sample_pct}'
+                    else:
+                        dir_name = model_type
+                    args.output = os.path.join(project_dir, 'reports', dir_name, 'meta_model_report.html')
                 elif model_type == "cifar100_transfer":
                     args.output = os.path.join(project_dir, 'reports', 'cifar100_transfer', 'meta_model_report.html')
                 elif model_type:
@@ -1286,8 +1326,17 @@ def main():
             if not args.web_output:
                 # Default web output path
                 web_server_dir = '/var/www/html/loss.computer-wizard.com.au/reports'
-                if model_type and resource_level:
-                    args.web_output = os.path.join(web_server_dir, f'{model_type}_{resource_level}', 'meta_model_report.html')
+                if model_type and sample_pct:
+                    # Use the appropriate directory format based on the sample percentage
+                    if sample_pct < 100:
+                        # Try new naming convention first
+                        dir_name = f'{model_type}_sample{sample_pct}pct'
+                        if not os.path.exists(os.path.join(web_server_dir, dir_name)):
+                            # Fall back to old naming convention
+                            dir_name = f'{model_type}_{sample_pct}'
+                    else:
+                        dir_name = model_type
+                    args.web_output = os.path.join(web_server_dir, dir_name, 'meta_model_report.html')
                 elif model_type == "cifar100_transfer":
                     args.web_output = os.path.join(web_server_dir, 'cifar100_transfer', 'meta_model_report.html')
                 elif model_type:
@@ -1305,15 +1354,22 @@ def main():
         if dir_name.startswith('cifar'):
             parts = dir_name.split('_')
             model_type = parts[0]
+            sample_pct = None
             if len(parts) > 1 and parts[1].isdigit():
-                resource_level = int(parts[1])
+                # Old naming convention: cifar10_10
+                sample_pct = int(parts[1])
+            elif len(parts) > 1 and parts[1] == 'sample' and len(parts) > 2 and parts[2].endswith('pct'):
+                # New naming convention: cifar10_sample10pct
+                pct_str = parts[2].replace('pct', '')
+                if pct_str.isdigit():
+                    sample_pct = int(pct_str)
             elif len(parts) > 1 and parts[1] == 'transfer':
                 model_type = f"{model_type}_transfer"
     
-    logger.info(f"Generating meta-model report for model type: {model_type}, resource level: {resource_level}")
+    logger.info(f"Generating meta-model report for model type: {model_type}, sample percentage: {sample_pct if sample_pct is not None else "unknown"}")
     
     # Parse the meta-model log file
-    info = parse_meta_model_log(args.log_file, model_type, resource_level)
+    info = parse_meta_model_log(args.log_file, model_type, sample_pct)
     status = info.get('status', 'not_found')
     
     # If we're generating a placeholder report, use the command-line arguments

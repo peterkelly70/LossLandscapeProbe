@@ -291,13 +291,23 @@ def run_meta_optimization(dataset_name, sample_size, num_iterations=DEFAULT_NUM_
     reports_dir = os.path.join(project_root, "reports", model_type)
     os.makedirs(reports_dir, exist_ok=True)
     
-    # Define log file path in the reports directory
-    log_file_path = os.path.join(reports_dir, f"{dataset_name}_meta_model_{int(sample_size*100)}pct.log")
+    # Define log file path in the reports directory using the new sample percentage naming convention
+    log_file_path = os.path.join(reports_dir, f"{dataset_name}_meta_model_sample{int(sample_size*100)}pct.log")
     
-    # Add file handler to logger for project directory
+    # Also create a logs directory at the project root for easier discovery
+    logs_dir = os.path.join(project_root, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    logs_file_path = os.path.join(logs_dir, f"{dataset_name}_meta_model_sample{int(sample_size*100)}pct.log")
+    
+    # Add file handler to logger for project reports directory
     file_handler = logging.FileHandler(log_file_path, mode='w')
     file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
     logger.addHandler(file_handler)
+    
+    # Add file handler to logger for project logs directory
+    logs_file_handler = logging.FileHandler(logs_file_path, mode='w')
+    logs_file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    logger.addHandler(logs_file_handler)
     
     # Also log to web server directory if it exists
     web_server_dir = "/var/www/html/loss.computer-wizard.com.au/reports"
@@ -306,7 +316,7 @@ def run_meta_optimization(dataset_name, sample_size, num_iterations=DEFAULT_NUM_
     try:
         # Create directory if it doesn't exist
         os.makedirs(web_model_dir, exist_ok=True)
-        web_log_path = os.path.join(web_model_dir, f"{dataset_name}_meta_model_{int(sample_size*100)}pct.log")
+        web_log_path = os.path.join(web_model_dir, f"{dataset_name}_meta_model_sample{int(sample_size*100)}pct.log")
         
         # Add another file handler for web server directory
         web_file_handler = logging.FileHandler(web_log_path, mode='w')
@@ -316,7 +326,7 @@ def run_meta_optimization(dataset_name, sample_size, num_iterations=DEFAULT_NUM_
     except Exception as e:
         logger.warning(f"Could not set up logging to web server: {e}")
     
-    logger.info(f"Meta-model log will be saved to {log_file_path}")
+    logger.info(f"Meta-model logs will be saved to {log_file_path} and {logs_file_path}")
     
     # Run the meta-optimization
     best_config = meta_probing.run_meta_optimization(
@@ -340,7 +350,7 @@ def run_meta_optimization(dataset_name, sample_size, num_iterations=DEFAULT_NUM_
     return best_config
 
 
-def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=DEFAULT_BATCH_SIZE, sample_size=1.0):
+def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=DEFAULT_BATCH_SIZE, sample_size=1.0, max_training_time=3600*6):
     """Train and evaluate a model with the given configuration.
     
     Args:
@@ -373,6 +383,26 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     # Create two-tier probing object with the correct constructor parameters
+    # Clear CUDA cache and garbage collect before starting
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    import gc
+    gc.collect()
+    
+    # Track start time for timeout
+    training_start_time = time.time()
+    
+    # Define helper function to log memory usage
+    def log_memory_usage():
+        if torch.cuda.is_available():
+            allocated = torch.cuda.memory_allocated() / 1024**2
+            reserved = torch.cuda.memory_reserved() / 1024**2
+            logger.info(f"GPU Memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
+    
+    # Log initial memory usage
+    logger.info("Starting training with memory usage:")
+    log_memory_usage()
+    
     # Define model_fn and optimizer_fn for TwoTierProbing
     def model_fn(cfg):
         return create_model(cfg, num_classes=num_classes)
@@ -397,13 +427,45 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
         device=device
     )
     
+    # Log memory usage after model initialization
+    logger.info("After model initialization:")
+    log_memory_usage()
+    
     # Determine the model type for directory structure
-    model_type = f"cifa{num_classes}" if sample_size == 1.0 else f"cifa{num_classes}_{int(sample_size*100)}"
-    reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "reports", model_type)
+    # Use sample_pct in the name to clearly indicate percentage of dataset used
+    model_type = f"cifar{num_classes}" if sample_size == 1.0 else f"cifar{num_classes}_sample{int(sample_size*100)}pct"
+    
+    # Get project root directory
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
+    # Create reports directory path
+    reports_dir = os.path.join(project_root, "reports", model_type)
     os.makedirs(reports_dir, exist_ok=True)
     
-    # Create the training log file path
-    training_log_path = os.path.join(reports_dir, f"{model_type}_training_log.txt")
+    # Also create logs directory at project root
+    logs_dir = os.path.join(project_root, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Create the training log file paths - one in reports directory and one in logs directory
+    reports_log_path = os.path.join(reports_dir, f"{model_type}_training_log.txt")
+    logs_log_path = os.path.join(logs_dir, f"{model_type}_training_log.txt")
+    
+    # Store all log paths in a list for easier handling
+    training_log_paths = [reports_log_path, logs_log_path]
+    
+    # Also prepare web server path if available
+    web_server_dir = "/var/www/html/loss.computer-wizard.com.au/reports"
+    web_model_dir = os.path.join(web_server_dir, model_type)
+    web_log_path = None
+    
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(web_model_dir, exist_ok=True)
+        web_log_path = os.path.join(web_model_dir, f"{model_type}_training_log.txt")
+        training_log_paths.append(web_log_path)
+        logger.info(f"Will also log training progress to web server at {web_log_path}")
+    except Exception as e:
+        logger.warning(f"Could not set up logging to web server: {e}")
     
     # Define a custom JSON encoder to handle NumPy types
     class NumpyEncoder(json.JSONEncoder):
@@ -418,22 +480,43 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
                 return str(obj)
             return super(NumpyEncoder, self).default(obj)
     
-    # Open the training log file in append mode
-    with open(training_log_path, 'w') as log_file:
-        log_file.write(f"Training log for {dataset_name} model with {int(sample_size*100)}% resource level\n")
-        log_file.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        log_file.write(f"Configuration: {json.dumps(config, indent=2, cls=NumpyEncoder)}\n\n")
-        log_file.write("Epoch,TrainingLoss,TrainingAccuracy,ValidationLoss,ValidationAccuracy,ElapsedTime\n")
+    # Write initial log content to all log files
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # Log the start of training
+    logger.info(f"Training {dataset_name} model with {int(sample_size*100)}% sample size")
+    logger.info(f"Configuration: {config}")
+    
+    # Create results directory with timestamp and sample size
+    model_dir = os.path.join(RESULTS_DIR, f"{dataset_name}_{int(sample_size*100)}pct_{DATE_STR}")
+    os.makedirs(model_dir, exist_ok=True)
+    
+    header_content = f"Training log for {dataset_name} model with {int(sample_size*100)}% sample size\n"
+    header_content += f"Generated on: {timestamp}\n\n"
+    header_content += f"Configuration: {json.dumps(config, indent=2, cls=NumpyEncoder)}\n\n"
+    header_content += "Epoch,TrainingLoss,TrainingAccuracy,ValidationLoss,ValidationAccuracy,ElapsedTime\n"
+    
+    # Write to all log paths
+    for log_path in training_log_paths:
+        try:
+            with open(log_path, 'w') as log_file:
+                log_file.write(header_content)
+        except Exception as e:
+            logger.warning(f"Could not write to log file {log_path}: {e}")
     
     # Define progress callback for detailed logging that also writes to the log file
     def progress_callback(epoch, loss, accuracy, elapsed_time):
         logger.info(f"Epoch {epoch}/{epochs}: loss={loss:.4f}, accuracy={accuracy:.4f}, time={elapsed_time:.2f}s")
         
-        # Write to the log file in real-time
-        with open(training_log_path, 'a') as log_file:
-            # Write the epoch data in CSV format
-            log_file.write(f"{epoch},{loss:.4f},{accuracy:.4f},,,{elapsed_time:.2f}\n")
-            log_file.flush()  # Ensure the data is written immediately
+        # Write to all log files in real-time
+        log_line = f"{epoch},{loss:.4f},{accuracy:.4f},,,{elapsed_time:.2f}\n"
+        
+        for log_path in training_log_paths:
+            try:
+                with open(log_path, 'a') as log_file:
+                    log_file.write(log_line)
+                    log_file.flush()  # Ensure the data is written immediately
+            except Exception as e:
+                logger.warning(f"Could not write to log file {log_path}: {e}")
     
     # Define progress callback for detailed logging that also writes to the log file
     def progress_callback_wrapper(epoch_data):
@@ -446,21 +529,40 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
         
         logger.info(f"Epoch {epoch}/{epochs}: loss={loss:.4f}, accuracy={accuracy:.4f}, val_loss={val_loss:.4f}, val_acc={val_acc:.4f}")
         
-        # Write to the log file in real-time
-        with open(training_log_path, 'a') as log_file:
-            # Write the epoch data in CSV format
-            log_file.write(f"{epoch},{loss:.4f},{accuracy:.4f},{val_loss:.4f},{val_acc:.4f},{elapsed_time:.2f}\n")
-            log_file.flush()  # Ensure the data is written immediately
+        # Write to all log files in real-time
+        log_line = f"{epoch},{loss:.4f},{accuracy:.4f},{val_loss:.4f},{val_acc:.4f},{elapsed_time:.2f}\n"
+        
+        for log_path in training_log_paths:
+            try:
+                with open(log_path, 'a') as log_file:
+                    log_file.write(log_line)
+                    log_file.flush()  # Ensure the data is written immediately
+            except Exception as e:
+                logger.warning(f"Could not write to log file {log_path}: {e}")
     
     # Register the callback with the probing object
     probing.epoch_callback = progress_callback_wrapper
     
-    # Train and evaluate using the new API
-    result = probing.train_and_evaluate(
-        config=config,
-        sample_size=sample_size,
-        measure_flatness=True
-    )
+    # Train and evaluate using the new API with timeout
+    remaining_time = max_training_time - (time.time() - training_start_time)
+    if remaining_time <= 0:
+        raise TimeoutError("Training aborted: Maximum training time reached before starting training loop")
+        
+    logger.info(f"Starting training with max time: {max_training_time/3600:.1f} hours")
+    
+    try:
+        result = probing.train_and_evaluate(
+            config=config,
+            sample_size=sample_size,
+            measure_flatness=True,
+            max_training_time=remaining_time
+        )
+    except Exception as e:
+        logger.error(f"Error during training: {str(e)}")
+        # Log memory usage on error
+        logger.error("Memory usage at time of error:")
+        log_memory_usage()
+        raise  # Re-raise the exception to be handled by the caller
     
     # Extract results
     val_loss = result.val_loss
@@ -484,8 +586,8 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
     torch.save(model.state_dict(), model_path)
     
     # 2. Save to reports directory with fixed name (for website)
-    # Create model-specific directory in reports
-    model_type = f"cifa{num_classes}" if sample_size == 1.0 else f"cifa{num_classes}_{int(sample_size*100)}"
+    # Create model-specific directory in reports using consistent naming
+    model_type = f"cifar{num_classes}" if sample_size == 1.0 else f"cifar{num_classes}_{int(sample_size*100)}"
     reports_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "reports", model_type)
     os.makedirs(reports_dir, exist_ok=True)
     
@@ -493,41 +595,45 @@ def train_and_evaluate(config, dataset_name, epochs=DEFAULT_EPOCHS, batch_size=D
     fixed_model_path = os.path.join(reports_dir, "latest_model.pth")
     torch.save(model.state_dict(), fixed_model_path)
     
-    # Save training log to the reports directory with a fixed name
-    training_log_path = os.path.join(reports_dir, f"{model_type}_training_log.txt")
+    # Prepare final training log content with summary information
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    summary_content = f"Training log for {dataset_name} model with {int(sample_size*100)}% sample percentage\n"
+    summary_content += f"Generated on: {timestamp}\n\n"
+    summary_content += f"Configuration: {json.dumps(config, indent=2, cls=NumpyEncoder)}\n\n"
+    summary_content += f"Final validation accuracy: {val_acc:.4f}\n"
+    summary_content += f"Final training accuracy: {train_acc:.4f}\n"
+    summary_content += f"Final validation loss: {val_loss:.4f}\n"
+    summary_content += f"Final training loss: {train_loss:.4f}\n\n"
+    summary_content += "Epoch,TrainingLoss,TrainingAccuracy,ValidationLoss,ValidationAccuracy\n"
     
-    # Create a training log with all the information
-    with open(training_log_path, 'w') as log_file:
-        log_file.write(f"Training log for {dataset_name} model with {int(sample_size*100)}% resource level\n")
-        log_file.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        log_file.write(f"Configuration: {json.dumps(config, indent=2, cls=NumpyEncoder)}\n\n")
-        log_file.write(f"Final validation accuracy: {val_acc:.4f}\n")
-        log_file.write(f"Final training accuracy: {train_acc:.4f}\n")
-        log_file.write(f"Final validation loss: {val_loss:.4f}\n")
-        log_file.write(f"Final training loss: {train_loss:.4f}\n\n")
-        log_file.write("Epoch,TrainingLoss,TrainingAccuracy,ValidationLoss,ValidationAccuracy\n")
-        
-        # Add epoch data if available from the probing object
-        if hasattr(probing, 'epoch_metrics') and probing.epoch_metrics:
-            for epoch_data in probing.epoch_metrics:
-                log_file.write(f"{epoch_data['epoch']},{epoch_data['train_loss']:.4f},{epoch_data['train_acc']:.4f},{epoch_data['val_loss']:.4f},{epoch_data['val_acc']:.4f}\n")
+    # Add epoch data if available
+    if hasattr(probing, 'epoch_metrics') and probing.epoch_metrics:
+        for epoch_data in probing.epoch_metrics:
+            summary_content += f"{epoch_data['epoch']},{epoch_data['train_loss']:.4f},{epoch_data['train_acc']:.4f},{epoch_data['val_loss']:.4f},{epoch_data['val_acc']:.4f}\n"
     
-    logger.info(f"Training log saved to {training_log_path}")
+    # Define log paths for final logs
+    reports_log_path = os.path.join(reports_dir, f"{model_type}_training_log.txt")
+    logs_log_path = os.path.join(logs_dir, f"{model_type}_training_log.txt")
+    project_root_log_path = os.path.join(project_root, f"{model_type}_training_log.txt")
     
-    # Create symbolic link in project root for easy access
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    symlink_path = os.path.join(project_root, f"{model_type}_training_log.txt")
+    # List of all paths to write the final log to
+    final_log_paths = [reports_log_path, logs_log_path, project_root_log_path]
     
-    # Remove existing symlink if it exists
-    if os.path.exists(symlink_path) and os.path.islink(symlink_path):
-        os.unlink(symlink_path)
+    # Add web server path if available
+    web_log_path = os.path.join(web_model_dir, f"{model_type}_training_log.txt") if web_model_dir else None
+    if web_log_path:
+        final_log_paths.append(web_log_path)
     
-    # Create relative symlink
-    try:
-        os.symlink(os.path.relpath(training_log_path, project_root), symlink_path)
-        logger.info(f"Created symbolic link at {symlink_path}")
-    except Exception as e:
-        logger.warning(f"Could not create symbolic link: {e}")
+    # Write final logs to all locations
+    for log_path in final_log_paths:
+        try:
+            with open(log_path, 'w') as log_file:
+                log_file.write(summary_content)
+            logger.info(f"Training log saved to {log_path}")
+        except Exception as e:
+            logger.warning(f"Could not write final log to {log_path}: {e}")
+    
+    # No need for symbolic links as we're writing directly to all locations
     
     # Save the configuration and results
     results = {

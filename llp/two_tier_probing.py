@@ -45,7 +45,8 @@ class TwoTierProbing:
         optimizer_fn: Callable[[nn.Module, Dict[str, Any]], torch.optim.Optimizer],
         max_epochs: int = 100,
         device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-        alpha: float = 0.1  # Weight for sharpness in generalization score
+        alpha: float = 0.1,  # Weight for sharpness in generalization score
+        epoch_callback: Callable[[Dict[str, Any]], None] = None
     ):
         """
         Initialize the Two-Tier Probing framework.
@@ -68,9 +69,20 @@ class TwoTierProbing:
         self.max_epochs = max_epochs
         self.device = device
         self.alpha = alpha
+        self._epoch_callback = epoch_callback
         
         self.results = []
         self.epoch_metrics = []  # Track metrics for each epoch
+        
+    @property
+    def epoch_callback(self):
+        """Get the epoch callback function"""
+        return self._epoch_callback
+        
+    @epoch_callback.setter
+    def epoch_callback(self, callback):
+        """Set the epoch callback function"""
+        self._epoch_callback = callback
     
     def train_and_evaluate(
         self,
@@ -78,10 +90,11 @@ class TwoTierProbing:
         sample_size: Union[int, float],
         measure_flatness: bool = True,
         noise_std: float = 0.01,
-        num_perturbations: int = 5
+        num_perturbations: int = 5,
+        max_training_time: float = 3600 * 6  # 6 hours default max training time
     ) -> TwoTierEvaluation:
         """
-        Train a model with the given config and sample size, and evaluate it.
+        Train and evaluate a model with the given configuration.
         
         Args:
             config: Hyperparameter configuration
@@ -89,10 +102,24 @@ class TwoTierProbing:
             measure_flatness: Whether to measure loss landscape flatness
             noise_std: Standard deviation for weight perturbations
             num_perturbations: Number of perturbation samples
+            max_training_time: Maximum training time in seconds (default: 6 hours)
             
         Returns:
             Evaluation results
         """
+        # Clear CUDA cache and garbage collect
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        import gc
+        gc.collect()
+        
+        start_time = time.time()
+        
+        def log_memory_usage():
+            if torch.cuda.is_available():
+                allocated = torch.cuda.memory_allocated() / 1024**2
+                reserved = torch.cuda.memory_reserved() / 1024**2
+                logger.info(f"GPU Memory - Allocated: {allocated:.2f} MB, Reserved: {reserved:.2f} MB")
         # Determine if sample_size is epochs or data fraction
         if sample_size <= 1.0:
             # Sample_size is data fraction
@@ -111,16 +138,30 @@ class TwoTierProbing:
         model = model.to(self.device)
         optimizer = self.optimizer_fn(model, config)
         
-        # Training
-        start_time = time.time()
+        # Training setup
         model.train()
         self.epoch_metrics = []  # Reset epoch metrics for this training run
         
+        # Log initial memory usage
+        logger.info("Starting training...")
+        log_memory_usage()
+        
+        # Training loop with timeout check
         for epoch in range(epochs):
+            # Check for timeout
+            elapsed_time = time.time() - start_time
+            if elapsed_time > max_training_time:
+                logger.warning(f"Training exceeded maximum time of {max_training_time/3600:.1f} hours")
+                break
+                
             epoch_start = time.time()
             running_loss = 0.0
             correct = 0
             total = 0
+            
+            # Log memory usage every 5 epochs
+            if epoch % 5 == 0:
+                log_memory_usage()
             
             # Training loop
             for inputs, targets in train_loader:
@@ -162,13 +203,18 @@ class TwoTierProbing:
             val_acc = val_correct / val_total if val_total > 0 else 0
             
             # Store epoch metrics
-            self.epoch_metrics.append({
+            epoch_data = {
                 'epoch': epoch + 1,  # 1-indexed for better readability
                 'train_loss': train_loss,
                 'train_acc': train_acc,
                 'val_loss': val_loss,
                 'val_acc': val_acc
-            })
+            }
+            self.epoch_metrics.append(epoch_data)
+            
+            # Call epoch callback if registered
+            if self._epoch_callback is not None:
+                self._epoch_callback(epoch_data)
             
             # Log progress
             epoch_time = time.time() - epoch_start
@@ -207,19 +253,45 @@ class TwoTierProbing:
             logger.info(f"Measuring loss landscape sharpness (noise_std={noise_std}, samples={num_perturbations})...")
             sharp_start = time.time()
             
-            # Measure sharpness
-            sharpness = measure_sharpness(
-                model, val_loader, self.criterion,
-                noise_std=noise_std,
-                num_samples=num_perturbations,
-                device=self.device
-            )
-            
-            # Calculate perturbation robustness (1 / sharpness)
-            perturbation_robustness = 1.0 / (sharpness + 1e-10)
-            
-            logger.info(f"Sharpness measurement completed in {time.time() - sharp_start:.2f}s")
-            logger.info(f"Sharpness: {sharpness:.4f}, Perturbation Robustness: {perturbation_robustness:.4f}")
+            try:
+                # Add timeout to sharpness measurement
+                from multiprocessing import Process, Queue
+                import traceback
+                
+                def _measure_sharpness_worker(q, model, loader, crit, noise, samples, dev):
+                    try:
+                        result = measure_sharpness(model, loader, crit, noise, samples, dev)
+                        q.put(('success', result))
+                    except Exception as e:
+                        q.put(('error', str(e) + '\n' + traceback.format_exc()))
+                
+                q = Queue()
+                p = Process(target=_measure_sharpness_worker, 
+                          args=(q, model, val_loader, self.criterion, 
+                               noise_std, num_perturbations, self.device))
+                p.start()
+                p.join(timeout=300)  # 5 minute timeout
+                
+                if p.is_alive():
+                    p.terminate()
+                    p.join()
+                    logger.warning("Sharpness measurement timed out after 5 minutes")
+                    sharpness = 0.0
+                else:
+                    status, result = q.get()
+                    if status == 'success':
+                        sharpness = result
+                        # Calculate perturbation robustness (1 / sharpness)
+                        perturbation_robustness = 1.0 / (sharpness + 1e-10)
+                        logger.info(f"Sharpness measurement completed in {time.time() - sharp_start:.2f}s")
+                        logger.info(f"Sharpness: {sharpness:.4f}, Perturbation Robustness: {perturbation_robustness:.4f}")
+                    else:
+                        logger.error(f"Error in sharpness measurement: {result}")
+                        sharpness = 0.0
+                        
+            except Exception as e:
+                logger.error(f"Error during sharpness measurement: {str(e)}\n{traceback.format_exc()}")
+                sharpness = 0.0
         
         # Calculate generalization score
         generalization_score = val_accuracy - self.alpha * sharpness
@@ -447,6 +519,17 @@ class TwoTierProbing:
                 # Call progress callback
                 progress_callback(epoch, avg_loss, current_accuracy, total_elapsed)
                 
+                # Call epoch callback if registered
+                if self._epoch_callback is not None:
+                    self._epoch_callback({
+                        'epoch': epoch,
+                        'train_loss': avg_loss,
+                        'train_acc': current_accuracy,
+                        'val_loss': 0.0,  # Not available here
+                        'val_acc': 0.0,    # Not available here
+                        'elapsed_time': total_elapsed
+                    })
+                
                 # Switch back to training mode
                 model.train()
         
@@ -589,6 +672,18 @@ class TwoTierProbing:
                 
                 # Call progress callback
                 progress_callback(epoch, avg_loss, current_accuracy, total_elapsed, is_swa_active)
+                
+                # Call epoch callback if registered
+                if self._epoch_callback is not None:
+                    self._epoch_callback({
+                        'epoch': epoch,
+                        'train_loss': avg_loss,
+                        'train_acc': current_accuracy,
+                        'val_loss': 0.0,  # Not available here
+                        'val_acc': 0.0,    # Not available here
+                        'elapsed_time': total_elapsed,
+                        'is_swa_active': is_swa_active
+                    })
                 
                 # Switch back to training mode
                 model.train()

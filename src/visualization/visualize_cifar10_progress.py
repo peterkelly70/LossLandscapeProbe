@@ -4,7 +4,7 @@ Visualize CIFAR-10 Training Progress
 ====================================
 
 This script generates a visualization report for CIFAR-10 training progress,
-showing loss and accuracy trends over epochs.
+showing loss and accuracy trends over epochs for different sample sizes (e.g., 10%, 20%, etc.).
 """
 
 import os
@@ -32,7 +32,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def parse_training_log(log_text):
-    """Parse training log text to extract epoch, loss, and accuracy data"""
+    """Parse training log text to extract epoch, loss, and accuracy data
+    
+    Args:
+        log_text: Raw text from the training log file
+        
+    Returns:
+        Dictionary containing parsed training data (epochs, losses, accuracies)
+    """
     pattern = r"Epoch (\d+)/\d+ - Loss: ([\d\.]+), Test Acc: ([\d\.]+)"
     matches = re.findall(pattern, log_text)
     

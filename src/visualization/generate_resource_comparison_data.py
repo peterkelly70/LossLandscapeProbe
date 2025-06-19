@@ -23,10 +23,10 @@ def generate_resource_comparison_data(dataset='cifar10'):
     """Generate sample resource comparison data for the given dataset."""
     print(f"\nGenerating {dataset.upper()} resource comparison data...")
     
-    # Define resource levels (dataset percentages)
+    # Define sample percentages
     sample_sizes = [0.1, 0.2, 0.3, 0.4]  # 10%, 20%, 30%, 40%
     
-    # Sample data for each resource level
+    # Sample data for each sample percentage
     data = []
     
     for level in sample_sizes:
@@ -86,15 +86,15 @@ def generate_resource_comparison_data(dataset='cifar10'):
     df.to_csv(csv_path, index=False)
     print(f"Saved resource comparison data to {csv_path}")
     
-    # Generate training history for each resource level
+    # Generate training history for each sample percentage
     generate_training_histories(dataset, sample_sizes, DATE_STR)
     
     return df
 
 def generate_training_histories(dataset, sample_sizes, date_str):
-    """Generate sample training history data for each resource level."""
+    """Generate sample training history data for each sample percentage."""
     for level in sample_sizes:
-        # Number of epochs increases with resource level
+        # Number of epochs increases with sample percentage
         num_epochs = int(30 + level * 40)
         
         # Generate sample history data
@@ -139,11 +139,11 @@ def generate_training_histories(dataset, sample_sizes, date_str):
         json_path = os.path.join(RESULTS_DIR, f'{dataset}_sample_size_{level}_{date_str}.json')
         with open(json_path, 'w') as f:
             json.dump(metadata, f, indent=2)
-        print(f"Saved training history for resource level {level} to {json_path}")
+        print(f"Saved training history for sample percentage {level}% to {json_path}")
 
 def main():
     """Main function to generate all sample data."""
-    print("Generating Resource Level Comparison Sample Data")
+    print("Generating Sample Percentage Comparison Data")
     print("===============================================")
     
     # Create results directory if it doesn't exist

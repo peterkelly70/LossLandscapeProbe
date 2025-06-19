@@ -61,11 +61,17 @@ $data = array(
 
 $config = array();
 $in_config = false;
+$sample_size = 100; // Default to 100% if not specified
 
 foreach ($lines as $line) {
     // Skip empty lines
     if (empty(trim($line))) {
         continue;
+    }
+    
+    // Check for sample size in the log
+    if (preg_match('/Training.*?with (\d+)% sample size/i', $line, $matches)) {
+        $sample_size = intval($matches[1]);
     }
     
     // Check for configuration section
@@ -143,7 +149,7 @@ $json_data = json_encode($data);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Training Progress - <?php echo htmlspecialchars($model_display); ?></title>
+    <title>Training Progress - <?php echo htmlspecialchars($model_display); ?> (<?php echo $sample_size; ?>% sample size)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
         body {
@@ -256,6 +262,7 @@ $json_data = json_encode($data);
 </head>
 <body>
     <h1>Training Progress: <?php echo htmlspecialchars($model_display); ?></h1>
+    <h2>Sample Size: <?php echo $sample_size; ?>%</h2>
     
     <div class="progress-info">
         <div>

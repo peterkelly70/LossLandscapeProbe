@@ -29,15 +29,15 @@ EXAMPLES = {
         "script": "cifar10_example.py"
     },
     "cifar10_resource": {
-        "description": "Compare different resource levels for meta-model training on CIFAR-10",
+        "description": "Compare different sample percentages for meta-model training on CIFAR-10",
         "script": "sample_size_comparison_cifar10.py"
     },
     "cifar100_resource": {
-        "description": "Compare different resource levels for meta-model training on CIFAR-100",
+        "description": "Compare different sample percentages for meta-model training on CIFAR-100",
         "script": "sample_size_comparison_cifar100.py"
     },
     "visualize": {
-        "description": "Visualize results from resource level comparison experiments",
+        "description": "Visualize results from sample percentage comparison experiments",
         "script": "visualize_resource_comparison.py"
     },
     "setup_website": {

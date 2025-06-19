@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Visualization Script for Resource Level Comparison Results
+Visualization Script for Sample Percentage Comparison Results
 
-This script generates visualizations from the resource level comparison experiments
-to help analyze the trade-offs between different resource levels.
+This script generates visualizations from the sample percentage comparison experiments
+to help analyze the trade-offs between different sample percentages.
 """
 
 import os
@@ -15,7 +15,7 @@ import argparse
 from datetime import datetime
 
 # Parse command line arguments
-parser = argparse.ArgumentParser(description='Visualize resource level comparison results')
+parser = argparse.ArgumentParser(description='Visualize sample percentage comparison results')
 parser.add_argument('--headless', type=lambda x: x.lower() == 'true', default=True,
                     help='Run in headless mode without GUI (default: True)')
 parser.add_argument('--show-plots', type=lambda x: x.lower() == 'true', default=False,
@@ -62,7 +62,7 @@ def load_history(dataset='cifar10'):
     """Load training history from JSON files."""
     histories = {}
     
-    # Find all JSON files for each resource level
+    # Find all JSON files for each sample percentage
     for sample_size in [0.1, 0.2, 0.3, 0.4]:
         pattern = os.path.join(RESULTS_DIR, f'{dataset}_sample_size_{sample_size}_*.json')
         files = sorted(glob.glob(pattern))
@@ -139,7 +139,7 @@ def plot_accuracy_vs_time(df, dataset='cifar10'):
     return plot_path if args.save_plots else None
 
 def plot_meta_vs_training_time(df, dataset='cifar10'):
-    """Plot meta-model time vs training time for different resource levels."""
+    """Plot meta-model time vs training time for different sample percentages."""
     plt.figure(figsize=(10, 6))
     
     # Create bar chart
@@ -150,7 +150,7 @@ def plot_meta_vs_training_time(df, dataset='cifar10'):
     plt.bar(x - width/2, df_sorted['meta_time'], width, label='Meta-Model Time')
     plt.bar(x + width/2, df_sorted['training_time'], width, label='Training Time')
     
-    plt.xlabel('Resource Level')
+    plt.xlabel('Sample Percentage')
     plt.ylabel('Time (seconds)')
     plt.title(f'{dataset.upper()} Meta-Model Time vs Training Time')
     plt.xticks(x, [str(level) for level in df_sorted['sample_size']])
@@ -306,7 +306,7 @@ def plot_hyperparameter_comparison(df, dataset='cifar10'):
         return None
 
 def plot_training_curves(histories, dataset='cifar10'):
-    """Plot training and test curves for different resource levels."""
+    """Plot training and test curves for different sample percentages."""
     plt.figure(figsize=(15, 10))
     
     # Plot training loss
@@ -442,7 +442,7 @@ def visualize_results(dataset='cifar10'):
 
 def main():
     """Main function to generate all visualizations."""
-    print("Resource Level Comparison Visualization")
+    print("Sample Percentage Comparison Visualization")
     print("======================================")
     
     # Print configuration
