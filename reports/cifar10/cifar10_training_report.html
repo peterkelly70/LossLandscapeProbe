@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LossLandscapeProbe - Training Report</title>
+    <style>
+        body { 
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; 
+            margin: 0;
+            padding: 20px;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container { 
+            max-width: 1200px; 
+            margin: 0 auto;
+        }
+        header { 
+            background: #1a365d; 
+            color: white; 
+            padding: 20px; 
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        h1, h2, h3 { 
+            color: #2c5282; 
+            margin-top: 0;
+        }
+        .card { 
+            background: white; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .metric-card {
+            background: #f0f5ff;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border-left: 4px solid #4299e1;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2b6cb0;
+            margin: 10px 0;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #4a5568;
+        }
+        .config-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .config-table th, .config-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .config-table th {
+            background: #f8fafc;
+            font-weight: 600;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #718096;
+            font-size: 14px;
+            border-top: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>LossLandscapeProbe</h1>
+            <p>Model Training Report - 2025-06-22 03:13:08</p>
+        </header>
+        
+        <main>
+            <div class="card">
+                <h2>Model Performance Summary</h2>
+                <p>This report provides an overview of the model's performance on the CIFAR datasets.</p>
+                
+                <h3 style="margin-top: 30px;">CIFAR-100 Transfer Learning</h3>
+    
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value">55.24%</div>
+                        <div class="metric-label">Final Accuracy</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">55.24%</div>
+                        <div class="metric-label">Best Accuracy</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">84.70%</div>
+                        <div class="metric-label">CIFAR-10 Accuracy</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value">65.2%</div>
+                        <div class="metric-label">Relative Performance</div>
+                    </div>
+                </div>
+                
+                <h4>Best Configuration</h4>
+                <table class="config-table">
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Value</th>
+                    </tr>
+        
+                    <tr>
+                        <td><strong>Num Channels</strong></td>
+                        <td><code>64</code></td>
+                    </tr>
+            
+                    <tr>
+                        <td><strong>Dropout Rate</strong></td>
+                        <td><code>0.2</code></td>
+                    </tr>
+            
+                    <tr>
+                        <td><strong>Optimizer</strong></td>
+                        <td><code>adam</code></td>
+                    </tr>
+            
+                    <tr>
+                        <td><strong>Learning Rate</strong></td>
+                        <td><code>0.001</code></td>
+                    </tr>
+            
+                    <tr>
+                        <td><strong>Momentum</strong></td>
+                        <td><code>0.0</code></td>
+                    </tr>
+            
+                    <tr>
+                        <td><strong>Weight Decay</strong></td>
+                        <td><code>0.0001</code></td>
+                    </tr>
+            
+                </table>
+                
+                <div style="margin-top: 30px;">
+                    <h4>Training Progress</h4>
+        <p>Initial training loss: 3.8797 → Final training loss: 1.3307</p><p>Initial test accuracy: 19.46% → Final test accuracy: 55.18%</p></div>
+            </div>
+        </main>
+        
+        <footer class="footer">
+            <p>Generated by LossLandscapeProbe on 2025-06-22 03:13:08</p>
+            <p>For more information, please refer to the project documentation.</p>
+        </footer>
+    </div>
+</body>
+</html>
+    

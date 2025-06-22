@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block page_title %}Logs{% endblock %}
+
+{% block content %}
+<div class="container mt-4" x-data="logViewer()" x-init="fetchLogsList()">
+  <div class="row mb-3">
+    <div class="col-auto">
+      <select class="form-select" x-model="filterDataset">
+        <option value="">All Datasets</option>
+        <option value="cifar10">CIFAR-10</option>
+        <option value="cifar100">CIFAR-100</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <select class="form-select" x-model="filterSample">
+        <option value="">All Sizes</option>
+        <option value="multi">Multi</option>
+        <option value="10">10</option>
+        <option value="20">20</option>
+        <option value="30">30</option>
+        <option value="40">40</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-sm btn-primary" @click="fetchLogsList()">Apply</button>
+    </div>
+  </div>
+
+  <!-- Log file selector -->
+  <div class="row mb-2" x-show="files.length > 0">
+    <div class="col-auto">
+      <select class="form-select form-select-sm" x-model="selected" @change="startStreaming()">
+        <template x-for="file in files" :key="file">
+          <option :value="file" x-text="file"></option>
+        </template>
+      </select>
+    </div>
+    <div class="col-auto">
+      <div class="form-check form-switch mt-1">
+        <input class="form-check-input" type="checkbox" id="latestOnly" x-model="latestOnly" @change="toggleLatestOnly">
+        <label class="form-check-label" for="latestOnly">Auto-show latest</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log content display -->
+  <div x-show="selected">
+    <pre class="bg-dark text-light p-3" style="height: 60vh; overflow-y: scroll;" x-ref="logBox" x-text="content"></pre>
+  </div>
+  <div x-show="!selected && files.length > 0" class="text-muted text-center py-5">
+    Select a log file from the dropdown above
+  </div>
+</div>
+
+<script>
+function logViewer() {
+  const params = new URLSearchParams(window.location.search);
+  const initialDataset = params.get('dataset') || '';
+  const initialSample = params.get('sample_size') || '';
+  const initialFile = params.get('file') || '';
+  return {
+    files: [],
+    filterDataset: initialDataset,
+    filterSample: initialSample,
+    selected: '',
+    latestOnly: true,
+    content: '',
+    timer: null,
+
+    fetchLogsList() {
+      const queryParts = [];
+      if (this.filterDataset) queryParts.push(`dataset=${this.filterDataset}`);
+      if (this.filterSample) queryParts.push(`sample_size=${this.filterSample}`);
+      const baseUrl = `/api/logs${queryParts.length ? '?' + queryParts.join('&') : ''}`;
+      
+      // Clear current selection while loading
+      this.content = '';
+      this.selected = '';
+      
+      fetch(baseUrl)
+        .then(r => r.json())
+        .then(d => {
+          this.files = d.files || [];
+          if (this.files.length > 0) {
+            this.files.sort().reverse(); // Newest first
+            
+            // If a specific file was requested in the URL, select it
+            if (initialFile) {
+              // Find the exact match or the first file that contains the requested path
+              const matchingFile = this.files.find(f => f.includes(initialFile)) || this.files[0];
+              this.selected = matchingFile;
+              this.startStreaming();
+            }
+          }
+        });
+    },
+
+    startStreaming() {
+      clearInterval(this.timer);
+      this.fetchContent();
+      if (this.latestOnly) {
+        this.timer = setInterval(() => this.fetchContent(), 2000);
+      }
+    },
+
+    toggleLatestOnly() {
+      if (this.latestOnly) {
+        this.startStreaming();
+      } else {
+        clearInterval(this.timer);
+      }
+    },
+
+    fetchContent() {
+      if (!this.selected) return;
+      const extra = [];
+      if (this.filterDataset) extra.push(`dataset=${this.filterDataset}`);
+      if (this.filterSample) extra.push(`sample_size=${this.filterSample}`);
+      const tailUrl = `/api/logs?file=${encodeURIComponent(this.selected)}&lines=200${extra.length ? '&' + extra.join('&') : ''}`;
+      fetch(tailUrl)
+        .then(r => r.text())
+        .then(t => {
+          this.content = t;
+          this.$refs.logBox.scrollTop = this.$refs.logBox.scrollHeight;
+        });
+    }
+  }
+}
+</script>
+{% endblock %}
