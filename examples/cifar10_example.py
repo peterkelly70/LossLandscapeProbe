@@ -68,6 +68,10 @@ def get_cifar10_loaders(data_fraction=1.0, batch_size=128):
     Returns:
         Tuple of (train_loader, val_loader)
     """
+    # Use the root data directory
+    from pathlib import Path
+    data_dir = Path(__file__).parent.parent / 'data'
+    
     transform_train = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
@@ -82,10 +86,10 @@ def get_cifar10_loaders(data_fraction=1.0, batch_size=128):
     
     # Download CIFAR-10 dataset
     trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform_train
+        root=str(data_dir), train=True, download=True, transform=transform_train
     )
     testset = torchvision.datasets.CIFAR10(
-        root='./data', train=False, download=True, transform=transform_test
+        root=str(data_dir), train=False, download=True, transform=transform_test
     )
     
     # Use a subset of training data if data_fraction < 1.0

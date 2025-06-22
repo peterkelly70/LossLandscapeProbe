@@ -41,6 +41,10 @@ REPORTS_DIR = BASE_DIR.parent / 'reports'
 LOGS_ROOT = BASE_DIR.parent / 'logs'  # legacy; still created
 LOGS_ROOT.mkdir(exist_ok=True)  # keep
 
+# Use a single data directory in the root project folder
+DATA_DIR = BASE_DIR.parent / 'data'
+DATA_DIR.mkdir(exist_ok=True)
+
 # Ensure the directories exist
 REPORTS_DIR.mkdir(exist_ok=True)
 
