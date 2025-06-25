@@ -1,163 +1,215 @@
 #!/bin/bash
 
-# Colors for better UI
-RED='\033[0;31m'
+# Configuration
+PORT=8090
+APP="app.py"
+PID_FILE="./flask_server.pid"
+LOG_FILE="./flask_server.log"
+
+# Colors for output
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR" || exit 1
-
-# Function to display the menu
-show_menu() {
-    clear
-    echo -e "${YELLOW}==================================${NC}"
-    echo -e "${YELLOW}  LossLandscapeProbe Server Manager  ${NC}"
-    echo -e "${YELLOW}==================================${NC}"
-    
-    # Show server status
-    echo -e "\n${YELLOW}Server Status:${NC}"
-    
-    # Change to project root directory to check status
-    cd "$SCRIPT_DIR/.."
-    source "$SCRIPT_DIR/../.llp/bin/activate" 2>/dev/null
-    
-    # Check server status using the Python script
-    if python -m website.server status 2>/dev/null | grep -q "Server is running"; then
-        STATUS_INFO=$(python -m website.server status 2>/dev/null)
-        PID=$(echo "$STATUS_INFO" | grep -o "PID: [0-9]*" | cut -d' ' -f2)
-        PORT=$(echo "$STATUS_INFO" | grep -o "Port: [0-9]*" | cut -d' ' -f2)
-        echo -e "  ${GREEN}●${NC} Running (PID: $PID, Port: $PORT)"
-    else
-        echo -e "  ${RED}●${NC} Stopped"
+# Function to get the process ID of the running server
+get_pid() {
+    if [ -f "$PID_FILE" ]; then
+        local pid=$(cat "$PID_FILE" 2>/dev/null)
+        if ps -p "$pid" > /dev/null 2>&1; then
+            echo "$pid"
+            return 0
+        fi
+        # Remove stale PID file
+        rm -f "$PID_FILE"
     fi
-    
-    # Return to script directory
-    cd "$SCRIPT_DIR"
-    
-    # Show menu options
-    echo -e "\n${YELLOW}Options:${NC}"
-    echo "  1) Start Server"
-    echo "  2) Stop Server"
-    echo "  3) Restart Server"
-    echo "  4) View Logs"
-    echo "  5) Open in Browser"
-    echo "  6) Check Status"
-    echo -e "  ${YELLOW}q) Quit${NC}"
+    echo ""
+    return 1
+}
+
+# Function to check and install Flask
+check_flask() {
+    if ! python3 -c "import flask" >/dev/null 2>&1; then
+        echo -e "${YELLOW}Flask is not installed. Installing...${NC}"
+        if ! python3 -m pip install --user flask; then
+            echo -e "${RED}Failed to install Flask. Please install it manually with:${NC}"
+            echo -e "  python3 -m pip install --user flask"
+            return 1
+        fi
+        echo -e "${GREEN}Flask installed successfully!${NC}"
+    fi
+    return 0
 }
 
 # Function to start the server
 start_server() {
-    echo -e "\n${YELLOW}Starting server...${NC}"
-    # Activate virtual environment and start server
-    source "$SCRIPT_DIR/../.llp/bin/activate"
-    
-    # Change to project root directory to ensure proper module imports
-    cd "$SCRIPT_DIR/.."
-    python -m website.server start
-    
-    # Check if server started successfully
-    if python -m website.server status | grep -q "Server is running"; then
-        PORT=$(python -m website.server status | grep -o "Port: [0-9]*" | cut -d' ' -f2)
-        echo -e "${GREEN}Server started on port ${PORT}!${NC} Check logs at $SCRIPT_DIR/../instance/server.log"
-    else
-        echo -e "${RED}Failed to start server. Check logs at $SCRIPT_DIR/../instance/server.log${NC}"
+    local pid=$(get_pid)
+    if [ -n "$pid" ]; then
+        echo -e "${YELLOW}Server is already running (PID: $pid)${NC}"
+        return 1
     fi
     
-    # Return to the original directory
-    cd "$SCRIPT_DIR"
-    sleep 2
+    # Check if Flask is installed
+    if ! check_flask; then
+        return 1
+    fi
+    
+    echo -e "${GREEN}Starting Flask server on port $PORT...${NC}"
+    export FLASK_APP="$APP"
+    nohup python3 -m flask run --port=$PORT --host=0.0.0.0 > "$LOG_FILE" 2>&1 & echo $! > "$PID_FILE"
+    
+    sleep 2  # Give it a moment to start
+    
+    if [ -n "$(get_pid)" ]; then
+        echo -e "${GREEN}Server started successfully (PID: $(cat $PID_FILE))${NC}"
+        echo -e "Logs are being written to: $LOG_FILE"
+    else
+        echo -e "${RED}Failed to start server. Check $LOG_FILE for details.${NC}"
+        return 1
+    fi
 }
 
 # Function to stop the server
 stop_server() {
-    echo -e "\n${YELLOW}Stopping server...${NC}"
-    source "$SCRIPT_DIR/../.llp/bin/activate"
-    
-    # Change to project root directory to ensure proper module imports
-    cd "$SCRIPT_DIR/.."
-    python -m website.server stop
-    
-    # Verify server was stopped
-    if ! python -m website.server status | grep -q "Server is running"; then
-        echo -e "${GREEN}Server stopped successfully.${NC}"
-    else
-        echo -e "${RED}Failed to stop server. Check logs at $SCRIPT_DIR/../instance/server.log${NC}"
+    local pid=$(get_pid)
+    if [ -z "$pid" ]; then
+        echo -e "${YELLOW}Server is not running${NC}"
+        return 1
     fi
     
-    # Return to the original directory
-    cd "$SCRIPT_DIR"
-    sleep 1
-}
-
-# Function to view logs
-view_logs() {
-    echo -e "\n${YELLOW}Viewing logs (Press 'q' to return to menu)...${NC}"
-    LOG_FILE="$SCRIPT_DIR/../instance/server.log"
-    if [ -f "$LOG_FILE" ]; then
-        # Use less with line numbers and quit-if-one-screen
-        less -N +F "$LOG_FILE"
-    else
-        echo -e "${RED}Log file not found at $LOG_FILE${NC}"
-        read -n 1 -s -r -p "Press any key to continue..."
-    fi
-}
-
-# Function to open in browser
-open_browser() {
-    source "$SCRIPT_DIR/../.llp/bin/activate"
+    echo -e "${GREEN}Stopping Flask server (PID: $pid)...${NC}"
+    kill -TERM "$pid"
     
-    # Change to project root directory to ensure proper module imports
-    cd "$SCRIPT_DIR/.."
-    if python -m website.server status | grep -q "Server is running"; then
-        PORT=$(python -m website.server status | grep -o "Port: [0-9]*" | cut -d' ' -f2)
-        URL="http://localhost:${PORT:-8090}"
-        echo -e "\n${YELLOW}Opening $URL in your default browser...${NC}"
-        xdg-open "$URL" 2>/dev/null || open "$URL" 2>/dev/null || echo -e "${RED}Could not open browser. Please open manually: $URL${NC}"
-    else
-        echo -e "${RED}Server is not running!${NC}"
+    # Wait for the process to terminate
+    local count=0
+    while [ -n "$(get_pid)" ] && [ "$count" -lt 10 ]; do
+        sleep 1
+        count=$((count + 1))
+    done
+    
+    if [ -n "$(get_pid)" ]; then
+        echo -e "${RED}Force stopping server...${NC}"
+        kill -9 "$pid"
         sleep 1
     fi
     
-    # Return to the original directory
-    cd "$SCRIPT_DIR"
+    if [ -f "$PID_FILE" ]; then
+        rm -f "$PID_FILE"
+    fi
+    
+    echo -e "${GREEN}Server stopped${NC}"
 }
 
-# Main menu loop
-while true; do
-    show_menu
+# Function to show server status
+status_server() {
+    local pid=$(get_pid)
+    if [ -n "$pid" ]; then
+        echo -e "${GREEN}Server is running (PID: $pid)${NC}"
+        echo -e "Process info:"
+        ps -p "$pid" -o pid,ppid,user,%cpu,%mem,cmd
+    else
+        echo -e "${RED}Server is not running${NC}"
+    fi
+}
+
+# Function to show interactive menu
+show_menu() {
+    clear
+    echo -e "\n${YELLOW}=== Flask Server Manager ===${NC}\n"
+    
+    # Show current status
+    local pid=$(get_pid)
+    if [ -n "$pid" ]; then
+        echo -e "${GREEN}● Server is running (PID: $pid)${NC}"
+    else
+        echo -e "${RED}● Server is not running${NC}"
+    fi
+    
+    echo -e "\n${YELLOW}Please choose an option:${NC}"
+    if [ -n "$pid" ]; then
+        echo -e "  ${GREEN}1${NC}) Stop server"
+        echo -e "  ${GREEN}2${NC}) Restart server"
+    else
+        echo -e "  ${GREEN}1${NC}) Start server"
+    fi
+    echo -e "  ${YELLOW}s${NC}) Show server status"
+    echo -e "  ${YELLOW}l${NC}) View server logs"
+    echo -e "  ${RED}q${NC}) Quit\n"
+    
     read -p "Enter your choice: " choice
     
     case $choice in
-        1) start_server ;;
-        2) stop_server ;;
-        3) 
+        1)
+            if [ -n "$pid" ]; then
+                stop_server
+            else
+                start_server
+            fi
+            ;;
+        2)
+            if [ -n "$pid" ]; then
+                stop_server
+                start_server
+            else
+                echo -e "${YELLOW}Server is not running. Starting it now...${NC}"
+                start_server
+            fi
+            ;;
+        s|S)
+            status_server
+            ;;
+        l|L)
+            if [ -f "$LOG_FILE" ]; then
+                echo -e "\n${YELLOW}=== Server Logs (last 20 lines) ===${NC}\n"
+                tail -n 20 "$LOG_FILE"
+            else
+                echo -e "${YELLOW}No log file found.${NC}"
+            fi
+            ;;
+        q|Q)
+            echo -e "\n${YELLOW}Goodbye!${NC}"
+            exit 0
+            ;;
+        *)
+            echo -e "\n${RED}Invalid choice. Please try again.${NC}"
+            sleep 1
+            return 1
+            ;;
+    esac
+    
+    echo -e "\n${YELLOW}Press any key to continue...${NC}"
+    read -n 1 -s
+    return 0
+}
+
+# Main script
+if [ $# -eq 0 ]; then
+    # Interactive mode
+    while true; do
+        show_menu
+    done
+else
+    # Command-line mode
+    case "$1" in
+        start)
+            start_server
+            ;;
+        stop)
+            stop_server
+            ;;
+        restart)
             stop_server
             start_server
             ;;
-        4) view_logs ;;
-        5) open_browser ;;
-        6) 
-            echo -e "\n${YELLOW}Checking server status...${NC}"
-            source "$SCRIPT_DIR/../.llp/bin/activate"
-            
-            # Change to project root directory to ensure proper module imports
-            cd "$SCRIPT_DIR/.."
-            python -m website.server status
-            
-            # Return to the original directory
-            cd "$SCRIPT_DIR"
-            read -n 1 -s -r -p "Press any key to continue..."
+        status)
+            status_server
             ;;
-        q|Q) 
-            echo -e "\n${YELLOW}Exiting...${NC}"
-            exit 0
-            ;;
-        *) 
-            echo -e "\n${RED}Invalid option!${NC}"
-            sleep 1
+        *)
+            echo "Usage: $0 {start|stop|restart|status}"
+            echo "       $0 (with no arguments for interactive mode)"
+            exit 1
             ;;
     esac
-done
+fi
+
+exit 0

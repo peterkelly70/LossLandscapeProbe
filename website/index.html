@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLP</title>
+  <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+  <style>
+    :root {
+      --sidebar-width: 240px;
+      --content-width: 960px;
+      --border: #d1d5db;
+      --bg: #f9fafb;
+    }
+    html { overflow-x: auto; }
+    body {
+      margin: 0;
+      font-family: system-ui, Helvetica, Arial, sans-serif;
+      width: calc(var(--sidebar-width) + var(--content-width));
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: var(--sidebar-width) var(--content-width);
+    }
+    aside {
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      padding: 1rem;
+      height: 100vh;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    main {
+      padding: 1.5rem 2rem;
+      height: 100vh;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+
+    /* Menu visuals */
+    h2, .caret { cursor: pointer; user-select: none; }
+    h2 { margin: .75rem 0 .25rem; font-size: 1rem; }
+    ul { list-style: none; padding-left: 1rem; margin: 0; }
+    li { margin: .25rem 0; }
+    a  { color: #0366d6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Caret indicator */
+    .caret::before {
+      content: '\25B6'; /* ► */
+      display: inline-block;
+      margin-right: 6px;
+      transition: transform .2s;
+    }
+    .caret.open::before { transform: rotate(90deg); }
+
+    pre  { background: #f0f0f0; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+    code { background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: Consolas, monospace; }
+  </style>
+</head>
+<body x-data="docsApp()" x-init="init()">
+  <!-- ===== Sidebar ===== -->
+  <aside>
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <h2>LLP</h2>
+      </div>
+      <template x-for="topic in toc" :key="topic.title">
+        <div>
+          <h2 class="caret" :class="{open: topic.open}" x-text="topic.title" @click="topic.open = !topic.open"></h2>
+          <ul x-show="topic.open" x-transition>
+            <template x-for="item in topic.items" :key="item.title">
+              <li>
+                <template x-if="item.items && item.items.length">
+                  <div x-data="{open:false}">
+                    <span class="caret" :class="{open}" x-text="item.title" @click="open = !open" style="font-weight:600;"></span>
+                    <ul x-show="open" x-transition>
+                      <template x-for="sub in item.items" :key="sub.title">
+                      <li>
+                        <!-- third level -->
+                        <template x-if="sub.items && sub.items.length">
+                          <div x-data="{open:false}">
+                            <span class="caret" :class="{open}" x-text="sub.title" @click="open = !open" style="font-weight:600;"></span>
+                            <ul x-show="open" x-transition>
+                              <template x-for="leaf in sub.items" :key="leaf.title">
+                                <li><a href="#" x-text="leaf.title" @click.prevent="load(leaf.path)"></a></li>
+                              </template>
+                            </ul>
+                          </div>
+                        </template>
+                        <template x-if="!sub.items">
+                          <a href="#" x-text="sub.title" @click.prevent="load(sub.path)"></a>
+                        </template>
+                      </li>
+                    </template>
+                  </ul>
+                </div>
+              </template>
+              <template x-if="!item.items">
+                <a href="#" x-text="item.title" @click.prevent="load(item.path)"></a>
+              </template>
+            </li>
+          </template>
+        </ul>
+      </div>
+    </template>
+  </aside>
+
+  <!-- ===== Main content ===== -->
+  <main>
+    <article x-html="content"></article>
+  </main>
+
+  <script>
+    function docsApp() {
+      /* ===== Helpers ===== */
+      const escapeHTML = str => str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+
+      const inline = s => escapeHTML(s)
+          .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1"/>')
+          .replace(/\[(.*?)\]\((.*?)\)/g, (_, text, url) => {
+            const isExternal = url.startsWith('http');
+            return `<a href="${url}" ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''}>${text}${isExternal ? ' ↗' : ''}</a>`;
+          })
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+      const mdToHtml = src => {
+        const lines = src.split(/\r?\n/);
+        let html = '', listType = null, inCode = false;
+        const closeList = () => { if (listType) { html += `</${listType}>`; listType = null; } };
+
+        for (const line of lines) {
+          if (inCode) {
+            if (line.trim().startsWith('```')) { html += '</code></pre>'; inCode = false; }
+            else { html += escapeHTML(line) + '\n'; }
+            continue;
+          }
+
+
+          if (line.trim().startsWith('```')) { closeList(); inCode = true; html += '<pre><code>'; continue; }
+
+
+          const h = line.match(/^(#{1,6})\s+(.*)$/);
+          if (h) { closeList(); const lvl = h[1].length; html += `<h${lvl}>${inline(h[2])}</h${lvl}>`; continue; }
+
+
+          const li = line.match(/^\s*([*+-]|\d+\.)\s+(.*)$/);
+          if (li) {
+            const newType = /\d+\./.test(li[1]) ? 'ol' : 'ul';
+            if (!listType) { html += `<${newType}>`; listType = newType; }
+            else if (listType !== newType) { html += `</${listType}><${newType}>`; listType = newType; }
+            html += `<li>${inline(li[2])}</li>`; continue;
+          }
+
+        }
+        closeList();
+        if (inCode) html += '</code></pre>';
+        return html;
+      };
+
+      return {
+        toc: [
+          { title: 'Documentation', open: true, items: [
+            { title: 'README',      path: 'docs/README.md' },
+            { title: 'WHITEPAPER',  path: 'docs/WHITEPAPER.md' },
+            { title: 'LICENSE',     path: 'docs/LICENSE' },
+            { title: 'GitHub Repository', path: 'https://github.com/peterkelly70/LossLandscapeProbe', external: true }
+          ]},
+          { title: 'Reports', open: false, items: [
+            { title: 'CIFAR-10', items: [...['cifar10_10','cifar10_20','cifar10_30','cifar10_40','cifar10_multi'].map(r => ({
+              title: r,
+              items: [
+                { title: 'Training Report', path: `reports/cifar10/${r}/${r}_training_report.html` },
+                { title: 'Test Report',     path: `reports/cifar10/${r}/${r}_test_report.html` },
+                { title: 'Training Log',    path: `reports/cifar10/${r}/training.log` }
+              ]
+            }))] },
+            { title: 'CIFAR-100', items: [...['cifar100_10','cifar100_20','cifar100_30','cifar100_40','cifar100_multi'].map(r => ({
+              title: r,
+              items: [
+                { title: 'Training Report', path: `reports/cifar100/${r}/${r}_training_report.html` },
+                { title: 'Test Report',     path: `reports/cifar100/${r}/${r}_test_report.html` },
+                { title: 'Training Log',    path: `reports/cifar100/${r}/training.log` }
+              ]
+            }))] }
+          ]}
+        ],
+
+        content: '<p>Select a document from the menu.</p>',
+
+        async init() {
+          const first = this.toc[0].items[0];
+          if (first) await this.load(first.path);
+        },
+
+        async load (path) {
+          const ext = path.includes('.') ? path.split('.').pop().toLowerCase() : '';
+
+          // HTML reports inside an iframe
+          if (['html', 'htm'].includes(ext)) {
+            this.content = `<iframe src="${path}" style="width:100%;height:calc(100vh - 3rem);border:none;"></iframe>`;
+            return;
+          }
+
+          // Plain text logs
+          if (ext === 'log') {
+            try {
+              const txt = await (await fetch(path)).text();
+              this.content = `<pre>${escapeHTML(txt)}</pre>`;
+            } catch (e) {
+              this.content = `<p style='color:red;'>${escapeHTML(e.message)}</p>`;
+            }
+            return;
+          }
+
+          // Markdown or other text
+          try {
+            const txt = await (await fetch(path)).text();
+            this.content = ext === 'md' ? mdToHtml(txt) : `<pre>${escapeHTML(txt)}</pre>`;
+          } catch (e) {
+            this.content = `<p style='color:red;'>${escapeHTML(e.message)}</p>`;
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

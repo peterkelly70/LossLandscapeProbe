@@ -51,7 +51,8 @@ def measure_sharpness(
     criterion: nn.Module,
     noise_std: float = 0.01,
     num_samples: int = 5,
-    device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device: torch.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+    max_batches: int = 10  # Limit number of batches for faster evaluation
 ) -> float:
     """
     Measure sharpness of the loss landscape by adding noise to weights.
@@ -63,46 +64,61 @@ def measure_sharpness(
         noise_std: Standard deviation of the noise
         num_samples: Number of perturbation samples
         device: Device to run the model on
+        max_batches: Maximum number of batches to evaluate (for speed)
         
     Returns:
         Sharpness score (average loss increase after perturbation)
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     model.eval()
     model = model.to(device)
     
-    # Compute original loss
+    logger.info(f"Computing original loss on {min(max_batches, len(val_loader))} batches")
+    
+    # Compute original loss on a limited number of batches for speed
     original_loss = 0.0
     with torch.no_grad():
-        for inputs, targets in val_loader:
+        for i, (inputs, targets) in enumerate(val_loader):
+            if i >= max_batches:
+                break
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
             loss = criterion(outputs, targets)
             original_loss += loss.item()
     
-    original_loss /= len(val_loader)
+    # Average over the number of batches actually used
+    num_batches = min(max_batches, len(val_loader))
+    original_loss /= num_batches
     
     # Compute loss after perturbation
     perturbed_losses = []
-    for _ in range(num_samples):
+    for i in range(num_samples):
+        logger.info(f"Evaluating perturbation {i+1}/{num_samples}")
         perturbed_model = perturb_weights(model, noise_std)
         perturbed_model.eval()
         perturbed_model = perturbed_model.to(device)
         
         perturbed_loss = 0.0
         with torch.no_grad():
-            for inputs, targets in val_loader:
+            for j, (inputs, targets) in enumerate(val_loader):
+                if j >= max_batches:
+                    break
                 inputs, targets = inputs.to(device), targets.to(device)
                 outputs = perturbed_model(inputs)
                 loss = criterion(outputs, targets)
                 perturbed_loss += loss.item()
         
-        perturbed_loss /= len(val_loader)
+        perturbed_loss /= num_batches
         perturbed_losses.append(perturbed_loss)
+        logger.info(f"Perturbation {i+1} loss: {perturbed_loss:.4f} (original: {original_loss:.4f})")
     
     # Calculate average loss increase
     avg_perturbed_loss = sum(perturbed_losses) / len(perturbed_losses)
     sharpness = avg_perturbed_loss - original_loss
     
+    logger.info(f"Sharpness measurement completed: {sharpness:.4f}")
     return sharpness
 
 

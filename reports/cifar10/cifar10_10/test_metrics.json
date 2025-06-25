@@ -1,0 +1,16 @@
+{
+  "test_loss": 0.462075422668457,
+  "test_acc": 0.8591,
+  "class_acc": {
+    "airplane": 0.865,
+    "automobile": 0.951,
+    "bird": 0.834,
+    "cat": 0.732,
+    "deer": 0.884,
+    "dog": 0.729,
+    "frog": 0.882,
+    "horse": 0.904,
+    "ship": 0.901,
+    "truck": 0.909
+  }
+}
