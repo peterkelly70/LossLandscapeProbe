@@ -1,0 +1,858 @@
+#!/usr/bin/env python3
+"""
+CIFAR Meta-Model Module
+======================
+
+Hyperparameter prediction and meta-model optimization for CIFAR datasets.
+This module handles:
+- Meta-model training
+- Hyperparameter prediction
+- Configuration evaluation
+"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.optim.lr_scheduler as lr_scheduler
+import torchvision.models as models
+import numpy as np
+import logging
+from pathlib import Path
+import json
+import time
+import random
+import math
+import traceback
+from dataclasses import dataclass, field, asdict
+from typing import Dict, List, Tuple, Any, Optional, Callable, Union
+from datetime import datetime, timedelta
+
+# For type hints
+from torch.utils.data import DataLoader
+from torch import Tensor
+import numpy as np
+
+# Configuration dataclass for MetaModel
+@dataclass
+class MetaModelConfig:
+    """Configuration for the Meta-Model Optimizer."""
+    dataset: str = 'cifar10'
+    batch_size: int = 128
+    configs_per_sample: int = 10
+    perturbations: int = 5
+    iterations: int = 3
+    min_resource: float = 0.1
+    max_resource: float = 0.5
+    num_data_subsets: int = 5
+    subset_size: float = 0.2
+    ensure_disjoint_subsets: bool = True
+    perturbation_scale: float = 0.1
+    run_dir: Optional[Union[str, Path]] = None
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
+    random_seed: Optional[int] = 42
+
+# Import LLP modules
+from .meta_probing import MetaProbing
+from .meta_model import HyperparameterPredictor, DatasetFeatureExtractor
+from .cifar_core import create_model, create_optimizer, get_cifar_loaders
+from .data_sampling import DataSubset, get_multiple_subsets, create_sampled_loader, create_multiple_sampled_loaders
+from .hyperparameter_utils import (
+    HyperparameterRange, HyperparameterSampler, 
+    sample_hyperparameter_configs, generate_perturbed_configs
+)
+
+logger = logging.getLogger(__name__)
+
+
+def convert_to_serializable(obj, _memo=None):
+    """
+    Convert various types to native Python types for JSON serialization.
+    Handles NumPy types, PyTorch tensors, Path objects, and prevents circular references.
+    
+    Args:
+        obj: Object to convert
+        _memo: Internal use only - tracks seen objects to prevent circular references
+        
+    Returns:
+        Object with types converted to JSON-serializable formats
+    """
+    if _memo is None:
+        _memo = set()
+    
+    # Handle None
+    if obj is None:
+        return None
+        
+    # Handle basic types
+    if isinstance(obj, (int, float, str, bool)):
+        return obj
+    
+    # Handle circular references
+    obj_id = id(obj)
+    if obj_id in _memo:
+        return "<circular reference>"
+    _memo.add(obj_id)
+    
+    try:
+        # Handle Path objects and file-like objects
+        if hasattr(obj, '__fspath__'):  # Handles Path-like objects
+            return str(obj)
+            
+        # Handle NumPy types
+        if hasattr(obj, 'item') and callable(getattr(obj, 'item')):
+            return obj.item()
+            
+        # Handle NumPy arrays
+        if hasattr(obj, 'tolist') and callable(getattr(obj, 'tolist')):
+            return obj.tolist()
+            
+        # Handle PyTorch tensors
+        if hasattr(obj, 'is_cuda') or hasattr(obj, 'is_sparse'):  # PyTorch tensor
+            if obj.numel() == 1:  # Scalar tensor
+                return obj.item()
+            return obj.detach().cpu().numpy().tolist()
+            
+        # Handle dictionaries
+        if isinstance(obj, dict):
+            return {str(k): convert_to_serializable(v, _memo) 
+                   for k, v in obj.items()}
+            
+        # Handle sequences (list, tuple, etc.)
+        if isinstance(obj, (list, tuple, set)):
+            return [convert_to_serializable(item, _memo) for item in obj]
+            
+        # Handle other iterables
+        if hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+            try:
+                return [convert_to_serializable(item, _memo) for item in obj]
+            except (TypeError, RecursionError):
+                pass
+                
+        # Handle other objects with __dict__
+        if hasattr(obj, '__dict__'):
+            return convert_to_serializable(
+                {k: v for k, v in obj.__dict__.items() 
+                if not k.startswith('_')},
+                _memo
+            )
+            
+        # For any other type, return string representation
+        return str(obj)
+        
+    except Exception as e:
+        return f"<unserializable: {type(obj).__name__} - {str(e)}>"
+    finally:
+        _memo.discard(obj_id)  # Clean up to avoid memory leaks
+
+
+class CIFARMetaModelOptimizer:
+    """
+    CIFAR Meta-Model Optimizer for hyperparameter optimization.
+    
+    This class handles the meta-model training and optimization process for
+    CIFAR datasets, including parallel execution timing and metrics.
+    Implements the meta-model optimization approach with parallel execution support.
+    """
+    
+    def __init__(self, config: Optional[MetaModelConfig] = None, **kwargs):
+        # Store parallel timing information
+        self._parallel_timing_data = {
+            'batch_times': [],
+            'parallel_efficiencies': [],
+            'start_time': time.time(),
+            'parallel_mode': 'none',
+            'num_workers': 1
+        }
+        """
+        Initialize the meta-model optimizer with support for multiple data subsets and hyperparameter perturbations.
+        
+        Args:
+            config: Configuration object with all parameters. If None, uses defaults.
+            **kwargs: Alternative way to provide parameters that will override the config.
+        """
+        # Create config from defaults, update with provided config, then with kwargs
+        self.config = MetaModelConfig()
+        if config is not None:
+            for key, value in config.__dict__.items():
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
+        
+        # Override with any kwargs
+        for key, value in kwargs.items():
+            if hasattr(self.config, key):
+                setattr(self.config, key, value)
+        
+        # Set random seeds for reproducibility
+        if self.config.random_seed is not None:
+            random.seed(self.config.random_seed)
+            np.random.seed(self.config.random_seed)
+            torch.manual_seed(self.config.random_seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(self.config.random_seed)
+        
+        # Set up run directory
+        self.run_dir = Path(self.config.run_dir) if self.config.run_dir is not None else None
+        if self.run_dir:
+            self.run_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Set up logging
+        self._setup_logging()
+        logger.info("Initializing CIFAR Meta-Model Optimizer")
+        logger.info(f"Configuration: {self.config}")
+        
+        # Set device
+        self.device = torch.device(self.config.device)
+        logger.info(f"Using device: {self.device}")
+        if self.device.type == 'cuda':
+            logger.info(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+        
+        # Initialize meta-model components
+        self.meta_probing = None
+        self.best_hyperparams = None
+        self.hyperparam_sampler = HyperparameterSampler()
+        
+        # Load dataset with pin_memory if using CUDA
+        pin_memory = self.device.type == 'cuda'
+        self.train_loader, self.val_loader, self.num_classes = get_cifar_loaders(
+            dataset=self.config.dataset,
+            batch_size=self.config.batch_size,
+            pin_memory=pin_memory
+        )
+        
+        # Initialize data subsets
+        self.data_subsets = []
+        self._init_data_subsets()
+    
+    def _init_data_subsets(self):
+        """Initialize data subsets for meta-model training."""
+        logger.info(f"Initializing {self.config.num_data_subsets} data subsets "
+                  f"(size: {self.config.subset_size*100:.1f}% of training data)")
+        
+        # Get the full training dataset
+        train_dataset = self.train_loader.dataset
+        
+        # Generate multiple data subsets
+        self.data_subsets = get_multiple_subsets(
+            dataset=train_dataset,
+            num_subsets=self.config.num_data_subsets,
+            subset_size=self.config.subset_size,
+            ensure_disjoint=self.config.ensure_disjoint_subsets,
+            base_seed=self.config.random_seed
+        )
+        
+        logger.info(f"Created {len(self.data_subsets)} data subsets with sizes: "
+                  f"{[len(subset.indices) for subset in self.data_subsets]}")
+    
+    def _get_subset_loader(self, subset_idx: int, batch_size: Optional[int] = None) -> torch.utils.data.DataLoader:
+        """
+        Get a DataLoader for a specific data subset.
+        
+        Args:
+            subset_idx: Index of the subset to use
+            batch_size: Optional batch size (defaults to config.batch_size)
+            
+        Returns:
+            DataLoader for the specified subset
+        """
+        if not self.data_subsets:
+            raise ValueError("Data subsets not initialized. Call _init_data_subsets() first.")
+            
+        if subset_idx < 0 or subset_idx >= len(self.data_subsets):
+            raise ValueError(f"Invalid subset index: {subset_idx}. Must be between 0 and {len(self.data_subsets)-1}.")
+        
+        subset = self.data_subsets[subset_idx]
+        
+        # Create a Subset with the specified indices
+        subset_dataset = torch.utils.data.Subset(
+            self.train_loader.dataset,
+            indices=subset.indices.tolist() if hasattr(subset.indices, 'tolist') else subset.indices
+        )
+        
+        # Create a new DataLoader with the subset
+        return torch.utils.data.DataLoader(
+            subset_dataset,
+            batch_size=batch_size or self.config.batch_size,
+            shuffle=True,
+            num_workers=2,
+            pin_memory=torch.cuda.is_available()
+        )
+        
+    def _setup_logging(self):
+        """Set up logging to use a single training.log file in the run directory."""
+        # Get the root logger to capture all logs
+        logger = logging.getLogger()
+        
+        # Clear any existing handlers to prevent duplicates
+        logger.handlers = []
+        
+        # Set log level
+        logger.setLevel(logging.INFO)
+        
+        # Create formatter
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        # Add console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+        # Add file handler to training.log in the run directory
+        if self.run_dir:
+            log_file = self.run_dir / 'training.log'
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+            
+            # Log the log file location
+            logger.info(f"Log file: {log_file}")
+            logger.info(f"Run directory: {self.run_dir}")
+    
+    def _get_hyperparameter_space(self):
+        """
+        Define the hyperparameter search space.
+        
+        Returns:
+            Dictionary with hyperparameter ranges and types
+        """
+        return {
+            # Model architecture
+            'num_channels': {'type': 'categorical', 'values': [16, 32, 64, 128]},
+            'dropout_rate': {'type': 'categorical', 'values': [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]},
+            
+            # Training hyperparameters
+            'batch_size': {'type': 'categorical', 'values': [32, 64, 128, 256]},
+            'max_epochs': {'type': 'categorical', 'values': [10, 20, 30, 50]},
+            'optimizer': {'type': 'categorical', 'values': ['sgd', 'adam']},  # Only supported optimizers
+            'learning_rate': {'type': 'log_float', 'min': 1e-4, 'max': 1e-1},
+            'momentum': {'type': 'float', 'min': 0.0, 'max': 0.99},
+            'weight_decay': {'type': 'log_float', 'min': 1e-5, 'max': 1e-2},
+            'use_lr_scheduler': {'type': 'categorical', 'values': [True, False]},
+            'lr_decay_factor': {'type': 'float', 'min': 0.1, 'max': 0.9},
+            'lr_patience': {'type': 'int', 'min': 2, 'max': 10}
+        }
+    
+    def _sample_hyperparameter_configs(
+        self, 
+        num_configs: int, 
+        base_config: Optional[Dict[str, Any]] = None,
+        perturbation_scale: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Sample hyperparameter configurations from the search space.
+        
+        Args:
+            num_configs: Number of configurations to sample
+            base_config: Optional base configuration to perturb
+            perturbation_scale: Scale of perturbations (0.0 to 1.0). If None, uses config.perturbation_scale
+            
+        Returns:
+            List of hyperparameter configurations
+        """
+        if base_config is not None:
+            # Generate perturbations around the base configuration
+            scale = perturbation_scale if perturbation_scale is not None else self.config.perturbation_scale
+            return generate_perturbed_configs(
+                base_config=base_config,
+                num_perturbations=num_configs,
+                perturbation_scale=scale,
+                seed=self.config.random_seed
+            )
+        else:
+            # Sample new configurations
+            return sample_hyperparameter_configs(
+                num_configs=num_configs,
+                seed=self.config.random_seed
+            )
+    
+    def _evaluate_configuration(
+            self, 
+            config: Dict[str, Any], 
+            resource_level: float = 1.0,  # Now using full resource by default
+            epochs: Optional[int] = None,  # Will be taken from config if None
+            subset_idx: Optional[int] = None,
+            is_perturbation: bool = False
+        ) -> Dict[str, Any]:
+        """
+        Evaluate a single hyperparameter configuration.
+        
+        Args:
+            config: Hyperparameter configuration
+            resource_level: Fraction of epochs to use (0.0 to 1.0)
+            epochs: Maximum number of epochs (if None, uses config['max_epochs'])
+            subset_idx: Optional index of the data subset to use. If None, uses full training set.
+            is_perturbation: Whether this is a perturbation evaluation (affects logging)
+            
+        Returns:
+            Dictionary with evaluation results
+        """
+        # Initialize data_info early to ensure it's always defined
+        data_info = "full training set" if subset_idx is None else f"subset {subset_idx+1}/{len(self.data_subsets) if hasattr(self, 'data_subsets') else '?'}"
+        eval_type = "perturbation" if is_perturbation else "configuration"
+        
+        try:
+            # Get batch size from config or use default
+            batch_size = config.get('batch_size', self.config.batch_size)
+            
+            # Get max epochs from config if not provided
+            max_epochs = epochs if epochs is not None else config.get('max_epochs', 10)
+            
+            # Calculate actual epochs based on resource level
+            actual_epochs = max(1, int(max_epochs * resource_level))
+            
+            # Get the appropriate data loader with the specified batch size
+            if subset_idx is not None:
+                train_loader = self._get_subset_loader(subset_idx, batch_size=batch_size)
+            else:
+                # Create a new loader with the specified batch size for the full dataset
+                train_loader = torch.utils.data.DataLoader(
+                    self.train_loader.dataset,
+                    batch_size=batch_size,
+                    shuffle=True,
+                    num_workers=2,
+                    pin_memory=torch.cuda.is_available()
+                )
+            
+            # Log evaluation start with subset progress percentage if applicable
+            if subset_idx is not None and hasattr(self, 'data_subsets'):
+                total_subsets = len(self.data_subsets)
+                subset_progress = (subset_idx / total_subsets) * 100
+                logger.info(f"Evaluating {eval_type} on {data_info} for {actual_epochs} epochs "
+                         f"(batch_size={batch_size}, lr={config.get('learning_rate', 0.001):.4f})... "
+                         f"[Overall Progress: {subset_progress:.1f}%]")
+            else:
+                logger.info(f"Evaluating {eval_type} on {data_info} for {actual_epochs} epochs "
+                         f"(batch_size={batch_size}, lr={config.get('learning_rate', 0.001):.4f})...")
+            
+            # Create model and move to device
+            model_config = {
+                'num_channels': config.get('num_channels', 32),  # Default to 32 if not specified
+                'dropout_rate': config.get('dropout_rate', 0.5)  # Default to 0.5 if not specified
+            }
+            
+            # Create model
+            model = create_model(
+                dataset=self.config.dataset,
+                num_classes=self.num_classes,
+                **model_config
+            ).to(self.device)
+            
+            # Create optimizer
+            optimizer = create_optimizer(
+                model=model,
+                optimizer_type=config.get('optimizer', 'adam'),
+                learning_rate=config.get('learning_rate', 0.001),
+                momentum=config.get('momentum', 0.9),
+                weight_decay=config.get('weight_decay', 1e-4)
+            )
+            
+            # Create scheduler if specified
+            scheduler = None
+            if config.get('use_lr_scheduler', False):
+                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                    optimizer,
+                    mode='max',
+                    factor=config.get('lr_decay_factor', 0.1),
+                    patience=config.get('lr_patience', 5),
+                    verbose=True
+                )
+            
+            # Training loop
+            model.train()
+            best_val_accuracy = 0.0
+            train_losses = []
+            val_accuracies = []
+            best_model_state = None
+            
+            # Track overall progress
+            total_epochs = actual_epochs
+            total_subsets = len(self.data_subsets) if hasattr(self, 'data_subsets') else 1
+            current_subset = subset_idx + 1 if subset_idx is not None else 0
+            subset_progress = current_subset / total_subsets if total_subsets > 0 else 0
+            
+            # Log memory usage if using CUDA
+            if self.device.type == 'cuda':
+                logger.info(f"Starting training on {torch.cuda.get_device_name(0)}")
+                logger.info(f"Initial CUDA memory allocated: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+            
+            # Epoch loop
+            for epoch in range(actual_epochs):
+                # Training
+                model.train()
+                running_loss = 0.0
+                total = 0
+                processed = 0
+                
+                for batch_idx, (inputs, targets) in enumerate(train_loader):
+                    # Move data to device
+                    inputs, targets = inputs.to(self.device), targets.to(self.device)
+                    
+                    # Zero the parameter gradients
+                    optimizer.zero_grad()
+                    
+                    # Forward pass
+                    outputs = model(inputs)
+                    loss = F.cross_entropy(outputs, targets)
+                    
+                    # Backward pass and optimize
+                    loss.backward()
+                    optimizer.step()
+                    
+                    # Update statistics
+                    running_loss += loss.item() * inputs.size(0)
+                    total += targets.size(0)
+                    processed += 1
+                    
+                    # Log progress every 20 batches
+                    if batch_idx % 20 == 0 and batch_idx > 0:
+                        avg_loss = running_loss / total
+                        progress = batch_idx / len(train_loader) * 100
+                        logger.debug(f"Epoch {epoch+1}/{actual_epochs} - Batch {batch_idx}/{len(train_loader)} "
+                                   f"[{progress:.1f}%] - Loss: {avg_loss:.4f}")
+                
+                # Calculate average training loss for this epoch
+                train_loss = running_loss / total
+                train_losses.append(train_loss)
+                
+                # Validation
+                model.eval()
+                val_loss = 0.0
+                val_correct = 0
+                val_total = 0
+                
+                with torch.no_grad():
+                    for batch_idx, (inputs, targets) in enumerate(self.val_loader):
+                        # Move data to device
+                        inputs, targets = inputs.to(self.device), targets.to(self.device)
+                        
+                        # Forward pass
+                        outputs = model(inputs)
+                        loss = F.cross_entropy(outputs, targets)
+                        
+                        # Update statistics
+                        val_loss += loss.item() * inputs.size(0)
+                        _, predicted = outputs.max(1)
+                        val_total += targets.size(0)
+                        val_correct += predicted.eq(targets).sum().item()
+                
+                # Calculate validation metrics
+                val_loss = val_loss / val_total
+                val_accuracy = val_correct / val_total
+                val_accuracies.append(val_accuracy)
+                
+                # Update learning rate scheduler if used
+                if scheduler is not None:
+                    scheduler.step(val_accuracy)
+                
+                # Save best model
+                if val_accuracy > best_val_accuracy:
+                    best_val_accuracy = val_accuracy
+                    best_model_state = model.state_dict()
+                
+                # Log progress
+                if (epoch + 1) % max(1, actual_epochs // 5) == 0 or (epoch + 1) == actual_epochs:
+                    # Calculate overall progress percentage
+                    epoch_progress = (epoch + 1) / actual_epochs
+                    if subset_idx is not None and hasattr(self, 'data_subsets'):
+                        total_subsets = len(self.data_subsets)
+                        subset_progress = subset_idx / total_subsets
+                        overall_progress = (subset_progress + epoch_progress / total_subsets) * 100
+                    else:
+                        overall_progress = epoch_progress * 100
+                    
+                    logger.info(f"Epoch {epoch+1}/{actual_epochs} - "
+                             f"Train Loss: {train_loss:.4f}, "
+                             f"Val Loss: {val_loss:.4f}, "
+                             f"Val Acc: {val_accuracy:.4f} "
+                             f"[Overall Progress: {overall_progress:.1f}%]")
+            
+            # Final evaluation results
+            results = {
+                'val_accuracy': best_val_accuracy,
+                'train_losses': train_losses,
+                'val_accuracies': val_accuracies,
+                'model_state': best_model_state,
+                'config': config,
+                'epochs_trained': actual_epochs,
+                'resource_level': resource_level
+            }
+            
+            # Log final results
+            logger.info(f"Evaluation complete - Best validation accuracy: {best_val_accuracy:.4f}")
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error during evaluation: {str(e)}")
+            raise
+        """
+        Predict the best hyperparameters using the trained meta-model.
+        
+        Returns:
+            Dictionary containing the predicted optimal hyperparameters
+            
+        Raises:
+            RuntimeError: If the meta-model is not trained
+        """
+        if not hasattr(self, 'meta_probing') or self.meta_probing is None:
+            raise RuntimeError("Meta-model has not been trained. Call optimize_hyperparameters() first.")
+        
+        logger.info("\nGenerating hyperparameter prediction...")
+        hyperparam_space = self._get_hyperparameter_space()
+        
+        # Generate prediction using meta-model
+        predicted_config = self.meta_probing.predict_best_configuration(hyperparam_space)
+        
+        # Log the prediction
+        logger.info("\nPredicted optimal hyperparameters:")
+        logger.info("-" * 40)
+        for param, value in predicted_config.items():
+            logger.info(f"{param:<20} {value}")
+        logger.info("-" * 40)
+        
+        return predicted_config
+
+    def predict(
+        self, 
+        model: nn.Module, 
+        data_loader: DataLoader,
+        return_probs: bool = False,
+        device: Optional[torch.device] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate predictions for a given model and data loader.
+        
+        Args:
+            model: Trained PyTorch model
+            data_loader: DataLoader for generating predictions
+            return_probs: If True, returns class probabilities; otherwise returns class indices
+            device: Device to run inference on (defaults to model's device)
+            
+        Returns:
+            Dictionary containing predictions and optionally probabilities
+        """
+        device = device or next(model.parameters()).device
+        model.eval()
+        
+        all_preds = []
+        all_probs = []
+        all_targets = []
+        
+        with torch.no_grad():
+            for batch in data_loader:
+                if len(batch) == 2:
+                    inputs, targets = batch
+                    all_targets.extend(targets.cpu().numpy())
+                else:
+                    inputs = batch[0]
+                
+                inputs = inputs.to(device)
+                outputs = model(inputs)
+                
+                if return_probs:
+                    probs = torch.nn.functional.softmax(outputs, dim=1)
+                    all_probs.append(probs.cpu().numpy())
+                
+                _, preds = torch.max(outputs, 1)
+                all_preds.extend(preds.cpu().numpy())
+        
+        result = {
+            'predictions': np.array(all_preds),
+            'targets': np.array(all_targets) if all_targets else None
+        }
+        
+        if return_probs:
+            result['probabilities'] = np.vstack(all_probs)
+            
+        return result
+        
+    def get_parallel_timing_info(self) -> Dict[str, Any]:
+        """
+        Get parallel timing information and metrics from the meta-model optimization process.
+        
+        Returns:
+            Dictionary containing parallel timing metrics such as efficiency, speedup, and variance.
+        """
+        # If we don't have any timing data, return empty dict
+        if not self._parallel_timing_data['batch_times']:
+            return {}
+            
+        # Calculate basic timing statistics
+        batch_times = np.array(self._parallel_timing_data['batch_times'])
+        parallel_efficiencies = np.array(self._parallel_timing_data['parallel_efficiencies']) \
+            if self._parallel_timing_data['parallel_efficiencies'] else np.array([0.0])
+        
+        # Calculate timing variance as coefficient of variation (std/mean)
+        timing_variance = np.std(batch_times) / np.mean(batch_times) if len(batch_times) > 1 else 0.0
+        
+        # Calculate speedup based on parallel efficiency
+        mean_efficiency = np.mean(parallel_efficiencies) if len(parallel_efficiencies) > 0 else 0.0
+        num_workers = self._parallel_timing_data['num_workers']
+        theoretical_speedup = num_workers if num_workers > 0 else 1.0
+        actual_speedup = theoretical_speedup * mean_efficiency if mean_efficiency > 0 else 1.0
+        
+        # Return simplified timing information (only essential metrics)
+        return {
+            'parallel_mode': self._parallel_timing_data['parallel_mode'],
+            'num_workers': num_workers,
+            'efficiency': mean_efficiency,
+            'speedup': actual_speedup,
+            'timing_variance': timing_variance,
+            'total_runtime': time.time() - self._parallel_timing_data['start_time']
+            # Removed detailed batch timing data to reduce log verbosity
+        }
+
+    def _extract_meta_features(
+        self,
+        model: nn.Module,
+        data_loader: DataLoader,
+        num_batches: int = 5
+    ) -> Dict[str, Any]:
+        """
+        Extract meta-features from the model and data loader for optimization.
+        
+        Args:
+            model: PyTorch model
+            data_loader: DataLoader for inference
+            num_batches: Number of batches to process for feature extraction
+            
+        Returns:
+            Dictionary of meta-features
+        """
+        model.eval()
+        device = next(model.parameters()).device
+        is_cuda = torch.cuda.is_available() and 'cuda' in str(device)
+        
+        # Initialize feature containers
+        features = {
+            'input_shapes': [],
+            'output_shapes': [],
+            'batch_times': [],
+            'memory_usage': [],
+            'gpu_utilization': [],
+            'parallel_efficiency': [],
+            'intermediate_shapes': {}
+        }
+        
+        # Synchronize before timing if using CUDA
+        if is_cuda:
+            torch.cuda.synchronize(device)
+        
+        # Process batches with accurate timing
+        with torch.no_grad():
+            for i, batch in enumerate(data_loader):
+                if i >= num_batches:
+                    break
+                    
+                inputs = batch[0] if isinstance(batch, (list, tuple)) else batch
+                inputs = inputs.to(device)
+                
+                # Track input shape
+                features['input_shapes'].append(tuple(inputs.shape))
+                
+                # Synchronize before timing if using CUDA
+                if is_cuda:
+                    torch.cuda.synchronize(device)
+                    
+                # Time forward pass with precise CUDA timing
+                start_time = time.perf_counter()
+                outputs = model(inputs)
+                
+                # Ensure all CUDA operations are completed before stopping timer
+                if is_cuda:
+                    torch.cuda.synchronize(device)
+                batch_time = time.perf_counter() - start_time
+                
+                # Track output shape
+                if isinstance(outputs, (list, tuple)):
+                    features['output_shapes'].append(tuple(o.shape for o in outputs))
+                else:
+                    features['output_shapes'].append(tuple(outputs.shape))
+                
+                # Track timing and memory
+                features['batch_times'].append(batch_time)
+                
+                # Collect GPU metrics if available
+                if is_cuda:
+                    # Memory usage in MB
+                    memory_usage = torch.cuda.memory_allocated(device) / 1024**2
+                    features['memory_usage'].append(memory_usage)
+                    
+                    # Calculate parallel efficiency if using DataParallel or DistributedDataParallel
+                    if isinstance(model, (nn.DataParallel, nn.parallel.DistributedDataParallel)):
+                        # Get number of active GPUs
+                        if isinstance(model, nn.DataParallel):
+                            num_gpus = len(model.device_ids)
+                            self._parallel_timing_data['parallel_mode'] = 'gpu_data_parallel'
+                        else:  # DistributedDataParallel
+                            num_gpus = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+                            self._parallel_timing_data['parallel_mode'] = 'gpu_distributed'
+                        
+                        self._parallel_timing_data['num_workers'] = num_gpus
+                        
+                        # Estimate efficiency (ideally would be 1.0 for perfect scaling)
+                        # This is a simple heuristic - in real world, you'd measure with single vs multi GPU
+                        theoretical_time = batch_time * num_gpus  # Time if there was no parallelization
+                        efficiency = theoretical_time / (batch_time * 1.1)  # Adjust for some overhead
+                        efficiency = min(1.0, efficiency)  # Cap at 1.0 for reasonable values
+                        features['parallel_efficiency'].append(efficiency)
+                        
+                        # Store timing data for later analysis
+                        self._parallel_timing_data['batch_times'].append(batch_time)
+                        self._parallel_timing_data['parallel_efficiencies'].append(efficiency)
+    
+        # Aggregate features
+        meta_features = {
+            'input_shape': features['input_shapes'][0] if features['input_shapes'] else None,
+            'output_shape': features['output_shapes'][0] if features['output_shapes'] else None,
+            'avg_batch_time': np.mean(features['batch_times']) if features['batch_times'] else 0.0,
+            'min_batch_time': min(features['batch_times']) if features['batch_times'] else 0.0,
+            'max_batch_time': max(features['batch_times']) if features['batch_times'] else 0.0,
+            'batch_time_std': np.std(features['batch_times']) if len(features['batch_times']) > 1 else 0.0,
+            'max_memory_usage': max(features['memory_usage']) if features['memory_usage'] else 0.0,
+            'model_params': sum(p.numel() for p in model.parameters() if p.requires_grad),
+            'model_buffers': sum(b.numel() for b in model.buffers()),
+            'device': str(device),
+            'is_parallel': isinstance(model, (nn.DataParallel, nn.parallel.DistributedDataParallel)),
+            'parallel_efficiency': np.mean(features['parallel_efficiency']) if features['parallel_efficiency'] else None
+        }
+        
+        return meta_features
+        
+    def predict_with_meta_model(
+        self, 
+        model: nn.Module, 
+        data_loader: DataLoader,
+        config: Optional[Dict[str, Any]] = None,
+        device: Optional[torch.device] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate predictions using the meta-model to optimize inference.
+        
+        Args:
+            model: Trained PyTorch model
+            data_loader: DataLoader for generating predictions
+            config: Optional configuration for prediction parameters
+            device: Device to run inference on (defaults to model's device)
+            
+        Returns:
+            Dictionary containing predictions and metadata
+        """
+        device = device or next(model.parameters()).device
+        config = config or {}
+        
+        # Get meta-model predictions for optimization
+        meta_features = self._extract_meta_features(model, data_loader)
+        
+        # Use meta-model to predict optimal batch size and other params
+        pred_config = {}
+        if hasattr(self, 'meta_probing') and hasattr(self.meta_probing, 'predict_optimal_inference_config'):
+            pred_config = self.meta_probing.predict_optimal_inference_config(meta_features)
+        
+        # Update with any user-provided config overrides
+        pred_config.update(config)
+        
+        # Run prediction with optimized parameters
+        return self.predict(model, data_loader, **{k: v for k, v in pred_config.items() 
+                                                if k in {'return_probs', 'batch_size', 'device'}})

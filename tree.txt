@@ -1,0 +1,1269 @@
+.
+├── astops_ever.py
+├── backup_legacy_reports
+│   ├── 10pct
+│   ├── 20pct
+│   ├── 30pct
+│   ├── 40pct
+│   └── base
+│       ├── cifar10_base_meta_report.html
+│       ├── cifar10_base_test_report.html
+│       └── cifar10_base_training_report.html
+├── data
+│   ├── cifar-100-python
+│   │   ├── file.txt~
+│   │   ├── meta
+│   │   ├── test
+│   │   └── train
+│   ├── cifar-100-python.tar.gz
+│   ├── cifar-10-batches-py
+│   │   ├── batches.meta
+│   │   ├── data_batch_1
+│   │   ├── data_batch_2
+│   │   ├── data_batch_3
+│   │   ├── data_batch_4
+│   │   ├── data_batch_5
+│   │   ├── readme.html
+│   │   └── test_batch
+│   └── cifar-10-python.tar.gz
+├── docs
+│   ├── LICENSE
+│   ├── README.md
+│   └── WHITEPAPER.md
+├── examples
+│   ├── cifar10_example.py
+│   ├── __pycache__
+│   │   └── cifar10_example.cpython-312.pyc
+│   └── train_with_meta_params.py
+├── instance
+│   ├── server_console.log
+│   └── server.log
+├── LICENSE
+├── llp
+│   ├── app.py
+│   ├── cifar_core.py
+│   ├── cifar_meta_model.py
+│   ├── cifar_reporting.py
+│   ├── cifar_training.py
+│   ├── data.py
+│   ├── data_sampling.py
+│   ├── __init__.py
+│   ├── meta_model.py
+│   ├── meta_probing.py
+│   ├── models.py
+│   ├── parameter_probing.py
+│   ├── __pycache__
+│   │   ├── data.cpython-312.pyc
+│   │   ├── data_sampling.cpython-312.pyc
+│   │   ├── __init__.cpython-312.pyc
+│   │   ├── meta_model.cpython-312.pyc
+│   │   ├── meta_probing.cpython-312.pyc
+│   │   ├── models.cpython-312.pyc
+│   │   ├── parameter_probing.cpython-312.pyc
+│   │   └── two_tier_probing.cpython-312.pyc
+│   ├── server.py
+│   ├── simple_docs.py
+│   ├── two_tier_probing.py
+│   └── unified_cifar_training.py
+├── logs
+│   ├── cifar10_10_20250622_174001.log
+│   ├── cifar10_10_20250622_174606.log
+│   ├── cifar10_10_20250622_175726.log
+│   ├── cifar10_10_20250623_002637.log
+│   ├── cifar10_10_20250623_010359.log
+│   ├── cifar10_10_20250623_010859.log
+│   ├── cifar10_base_20250622_161005.log
+│   ├── training_cifar10_20250625_154654.log
+│   └── training_cifar10_20250625_154706.log
+├── meta_model_trained.pth
+├── mksite.sh
+├── models
+│   ├── cifar10
+│   │   ├── cifar10_10
+│   │   │   ├── checkpoints
+│   │   │   └── meta_model
+│   │   ├── cifar10_20
+│   │   │   ├── checkpoints
+│   │   │   └── meta_model
+│   │   ├── cifar10_30
+│   │   │   ├── checkpoints
+│   │   │   └── meta_model
+│   │   ├── cifar10_40
+│   │   │   ├── checkpoints
+│   │   │   └── meta_model
+│   │   └── cifar10_multi
+│   │       ├── checkpoints
+│   │       └── meta_model
+│   ├── cifar100
+│   │   ├── cifar100_10
+│   │   │   ├── checkpoints
+│   │   │   └── meta_model
+│   │   ├── cifar100_20
+│   │   │   ├── checkpoints
+│   │   │   └── meta_model
+│   │   ├── cifar100_30
+│   │   │   ├── checkpoints
+│   │   │   └── meta_model
+│   │   ├── cifar100_40
+│   │   │   ├── checkpoints
+│   │   │   └── meta_model
+│   │   └── cifar100_multi
+│   │       ├── checkpoints
+│   │       └── meta_model
+│   ├── cifar100_0.1
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   ├── cifar100_10
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   ├── cifar100_20
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   ├── cifar100_30
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   ├── cifar100_40
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   ├── cifar100_multi
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   ├── cifar10_10
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_100.joblib
+│   │       ├── example_101.joblib
+│   │       ├── example_102.joblib
+│   │       ├── example_103.joblib
+│   │       ├── example_104.joblib
+│   │       ├── example_105.joblib
+│   │       ├── example_106.joblib
+│   │       ├── example_107.joblib
+│   │       ├── example_108.joblib
+│   │       ├── example_109.joblib
+│   │       ├── example_110.joblib
+│   │       ├── example_111.joblib
+│   │       ├── example_112.joblib
+│   │       ├── example_113.joblib
+│   │       ├── example_114.joblib
+│   │       ├── example_115.joblib
+│   │       ├── example_116.joblib
+│   │       ├── example_117.joblib
+│   │       ├── example_118.joblib
+│   │       ├── example_119.joblib
+│   │       ├── example_120.joblib
+│   │       ├── example_121.joblib
+│   │       ├── example_122.joblib
+│   │       ├── example_123.joblib
+│   │       ├── example_124.joblib
+│   │       ├── example_125.joblib
+│   │       ├── example_126.joblib
+│   │       ├── example_127.joblib
+│   │       ├── example_128.joblib
+│   │       ├── example_129.joblib
+│   │       ├── example_130.joblib
+│   │       ├── example_131.joblib
+│   │       ├── example_132.joblib
+│   │       ├── example_133.joblib
+│   │       ├── example_134.joblib
+│   │       ├── example_135.joblib
+│   │       ├── example_136.joblib
+│   │       ├── example_137.joblib
+│   │       ├── example_138.joblib
+│   │       ├── example_139.joblib
+│   │       ├── example_140.joblib
+│   │       ├── example_141.joblib
+│   │       ├── example_142.joblib
+│   │       ├── example_143.joblib
+│   │       ├── example_144.joblib
+│   │       ├── example_145.joblib
+│   │       ├── example_146.joblib
+│   │       ├── example_147.joblib
+│   │       ├── example_148.joblib
+│   │       ├── example_149.joblib
+│   │       ├── example_150.joblib
+│   │       ├── example_151.joblib
+│   │       ├── example_152.joblib
+│   │       ├── example_153.joblib
+│   │       ├── example_154.joblib
+│   │       ├── example_155.joblib
+│   │       ├── example_156.joblib
+│   │       ├── example_157.joblib
+│   │       ├── example_158.joblib
+│   │       ├── example_159.joblib
+│   │       ├── example_160.joblib
+│   │       ├── example_161.joblib
+│   │       ├── example_162.joblib
+│   │       ├── example_163.joblib
+│   │       ├── example_164.joblib
+│   │       ├── example_165.joblib
+│   │       ├── example_166.joblib
+│   │       ├── example_167.joblib
+│   │       ├── example_168.joblib
+│   │       ├── example_169.joblib
+│   │       ├── example_170.joblib
+│   │       ├── example_171.joblib
+│   │       ├── example_172.joblib
+│   │       ├── example_173.joblib
+│   │       ├── example_174.joblib
+│   │       ├── example_175.joblib
+│   │       ├── example_176.joblib
+│   │       ├── example_177.joblib
+│   │       ├── example_178.joblib
+│   │       ├── example_179.joblib
+│   │       ├── example_180.joblib
+│   │       ├── example_181.joblib
+│   │       ├── example_182.joblib
+│   │       ├── example_183.joblib
+│   │       ├── example_184.joblib
+│   │       ├── example_185.joblib
+│   │       ├── example_186.joblib
+│   │       ├── example_187.joblib
+│   │       ├── example_188.joblib
+│   │       ├── example_189.joblib
+│   │       ├── example_190.joblib
+│   │       ├── example_191.joblib
+│   │       ├── example_192.joblib
+│   │       ├── example_193.joblib
+│   │       ├── example_194.joblib
+│   │       ├── example_195.joblib
+│   │       ├── example_196.joblib
+│   │       ├── example_197.joblib
+│   │       ├── example_198.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_47.joblib
+│   │       ├── example_48.joblib
+│   │       ├── example_49.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_50.joblib
+│   │       ├── example_51.joblib
+│   │       ├── example_52.joblib
+│   │       ├── example_53.joblib
+│   │       ├── example_54.joblib
+│   │       ├── example_55.joblib
+│   │       ├── example_56.joblib
+│   │       ├── example_57.joblib
+│   │       ├── example_58.joblib
+│   │       ├── example_59.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_60.joblib
+│   │       ├── example_61.joblib
+│   │       ├── example_62.joblib
+│   │       ├── example_63.joblib
+│   │       ├── example_64.joblib
+│   │       ├── example_65.joblib
+│   │       ├── example_66.joblib
+│   │       ├── example_67.joblib
+│   │       ├── example_68.joblib
+│   │       ├── example_69.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_70.joblib
+│   │       ├── example_71.joblib
+│   │       ├── example_72.joblib
+│   │       ├── example_73.joblib
+│   │       ├── example_74.joblib
+│   │       ├── example_75.joblib
+│   │       ├── example_76.joblib
+│   │       ├── example_77.joblib
+│   │       ├── example_78.joblib
+│   │       ├── example_79.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_80.joblib
+│   │       ├── example_81.joblib
+│   │       ├── example_82.joblib
+│   │       ├── example_83.joblib
+│   │       ├── example_84.joblib
+│   │       ├── example_85.joblib
+│   │       ├── example_86.joblib
+│   │       ├── example_87.joblib
+│   │       ├── example_88.joblib
+│   │       ├── example_89.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_90.joblib
+│   │       ├── example_91.joblib
+│   │       ├── example_92.joblib
+│   │       ├── example_93.joblib
+│   │       ├── example_94.joblib
+│   │       ├── example_95.joblib
+│   │       ├── example_96.joblib
+│   │       ├── example_97.joblib
+│   │       ├── example_98.joblib
+│   │       ├── example_99.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   ├── cifar10_20
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_47.joblib
+│   │       ├── example_48.joblib
+│   │       ├── example_49.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_50.joblib
+│   │       ├── example_51.joblib
+│   │       ├── example_52.joblib
+│   │       ├── example_53.joblib
+│   │       ├── example_54.joblib
+│   │       ├── example_55.joblib
+│   │       ├── example_56.joblib
+│   │       ├── example_57.joblib
+│   │       ├── example_58.joblib
+│   │       ├── example_59.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_60.joblib
+│   │       ├── example_61.joblib
+│   │       ├── example_62.joblib
+│   │       ├── example_63.joblib
+│   │       ├── example_64.joblib
+│   │       ├── example_65.joblib
+│   │       ├── example_66.joblib
+│   │       ├── example_67.joblib
+│   │       ├── example_68.joblib
+│   │       ├── example_69.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_70.joblib
+│   │       ├── example_71.joblib
+│   │       ├── example_72.joblib
+│   │       ├── example_73.joblib
+│   │       ├── example_74.joblib
+│   │       ├── example_75.joblib
+│   │       ├── example_76.joblib
+│   │       ├── example_77.joblib
+│   │       ├── example_78.joblib
+│   │       ├── example_79.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_80.joblib
+│   │       ├── example_81.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   ├── cifar10_30
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_47.joblib
+│   │       ├── example_48.joblib
+│   │       ├── example_49.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_50.joblib
+│   │       ├── example_51.joblib
+│   │       ├── example_52.joblib
+│   │       ├── example_53.joblib
+│   │       ├── example_54.joblib
+│   │       ├── example_55.joblib
+│   │       ├── example_56.joblib
+│   │       ├── example_57.joblib
+│   │       ├── example_58.joblib
+│   │       ├── example_59.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_60.joblib
+│   │       ├── example_61.joblib
+│   │       ├── example_62.joblib
+│   │       ├── example_63.joblib
+│   │       ├── example_64.joblib
+│   │       ├── example_65.joblib
+│   │       ├── example_66.joblib
+│   │       ├── example_67.joblib
+│   │       ├── example_68.joblib
+│   │       ├── example_69.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_70.joblib
+│   │       ├── example_71.joblib
+│   │       ├── example_72.joblib
+│   │       ├── example_73.joblib
+│   │       ├── example_74.joblib
+│   │       ├── example_75.joblib
+│   │       ├── example_76.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   ├── cifar10_40
+│   │   ├── checkpoints
+│   │   │   ├── best_model.pth
+│   │   │   ├── checkpoint_epoch_100.pth
+│   │   │   ├── checkpoint_epoch_10.pth
+│   │   │   ├── checkpoint_epoch_20.pth
+│   │   │   ├── checkpoint_epoch_30.pth
+│   │   │   ├── checkpoint_epoch_40.pth
+│   │   │   ├── checkpoint_epoch_50.pth
+│   │   │   ├── checkpoint_epoch_60.pth
+│   │   │   ├── checkpoint_epoch_70.pth
+│   │   │   ├── checkpoint_epoch_80.pth
+│   │   │   ├── checkpoint_epoch_90.pth
+│   │   │   └── final_model.pth
+│   │   ├── logs
+│   │   └── meta_model
+│   │       ├── categorical_values.joblib
+│   │       ├── encoder_optimizer.joblib
+│   │       ├── example_0.joblib
+│   │       ├── example_1.joblib
+│   │       ├── example_26.joblib
+│   │       ├── example_27.joblib
+│   │       ├── example_28.joblib
+│   │       ├── example_29.joblib
+│   │       ├── example_2.joblib
+│   │       ├── example_30.joblib
+│   │       ├── example_31.joblib
+│   │       ├── example_32.joblib
+│   │       ├── example_33.joblib
+│   │       ├── example_34.joblib
+│   │       ├── example_35.joblib
+│   │       ├── example_36.joblib
+│   │       ├── example_37.joblib
+│   │       ├── example_38.joblib
+│   │       ├── example_39.joblib
+│   │       ├── example_3.joblib
+│   │       ├── example_40.joblib
+│   │       ├── example_41.joblib
+│   │       ├── example_42.joblib
+│   │       ├── example_43.joblib
+│   │       ├── example_44.joblib
+│   │       ├── example_45.joblib
+│   │       ├── example_47.joblib
+│   │       ├── example_48.joblib
+│   │       ├── example_49.joblib
+│   │       ├── example_4.joblib
+│   │       ├── example_50.joblib
+│   │       ├── example_51.joblib
+│   │       ├── example_52.joblib
+│   │       ├── example_53.joblib
+│   │       ├── example_54.joblib
+│   │       ├── example_55.joblib
+│   │       ├── example_56.joblib
+│   │       ├── example_57.joblib
+│   │       ├── example_58.joblib
+│   │       ├── example_59.joblib
+│   │       ├── example_5.joblib
+│   │       ├── example_60.joblib
+│   │       ├── example_61.joblib
+│   │       ├── example_62.joblib
+│   │       ├── example_63.joblib
+│   │       ├── example_64.joblib
+│   │       ├── example_65.joblib
+│   │       ├── example_66.joblib
+│   │       ├── example_67.joblib
+│   │       ├── example_68.joblib
+│   │       ├── example_69.joblib
+│   │       ├── example_6.joblib
+│   │       ├── example_70.joblib
+│   │       ├── example_71.joblib
+│   │       ├── example_72.joblib
+│   │       ├── example_73.joblib
+│   │       ├── example_74.joblib
+│   │       ├── example_75.joblib
+│   │       ├── example_76.joblib
+│   │       ├── example_7.joblib
+│   │       ├── example_8.joblib
+│   │       ├── example_9.joblib
+│   │       ├── hyperparameter_ranges.joblib
+│   │       ├── hyperparameter_types.joblib
+│   │       ├── meta_results.json
+│   │       ├── model_dropout_rate.joblib
+│   │       ├── model_learning_rate.joblib
+│   │       ├── model_momentum.joblib
+│   │       ├── model_num_channels.joblib
+│   │       ├── model_optimizer.joblib
+│   │       ├── model_weight_decay.joblib
+│   │       ├── scaler_dropout_rate.joblib
+│   │       ├── scaler_learning_rate.joblib
+│   │       ├── scaler_momentum.joblib
+│   │       ├── scaler_num_channels.joblib
+│   │       ├── scaler_optimizer.joblib
+│   │       └── scaler_weight_decay.joblib
+│   └── cifar10_multi
+│       ├── checkpoints
+│       │   ├── best_model.pth
+│       │   ├── checkpoint_epoch_100.pth
+│       │   ├── checkpoint_epoch_10.pth
+│       │   ├── checkpoint_epoch_20.pth
+│       │   ├── checkpoint_epoch_30.pth
+│       │   ├── checkpoint_epoch_40.pth
+│       │   ├── checkpoint_epoch_50.pth
+│       │   ├── checkpoint_epoch_60.pth
+│       │   ├── checkpoint_epoch_70.pth
+│       │   ├── checkpoint_epoch_80.pth
+│       │   ├── checkpoint_epoch_90.pth
+│       │   └── final_model.pth
+│       ├── logs
+│       └── meta_model
+│           ├── categorical_values.joblib
+│           ├── encoder_optimizer.joblib
+│           ├── example_0.joblib
+│           ├── example_1.joblib
+│           ├── example_26.joblib
+│           ├── example_27.joblib
+│           ├── example_28.joblib
+│           ├── example_29.joblib
+│           ├── example_2.joblib
+│           ├── example_30.joblib
+│           ├── example_31.joblib
+│           ├── example_32.joblib
+│           ├── example_33.joblib
+│           ├── example_34.joblib
+│           ├── example_35.joblib
+│           ├── example_36.joblib
+│           ├── example_37.joblib
+│           ├── example_38.joblib
+│           ├── example_39.joblib
+│           ├── example_3.joblib
+│           ├── example_40.joblib
+│           ├── example_41.joblib
+│           ├── example_42.joblib
+│           ├── example_43.joblib
+│           ├── example_44.joblib
+│           ├── example_45.joblib
+│           ├── example_47.joblib
+│           ├── example_48.joblib
+│           ├── example_49.joblib
+│           ├── example_4.joblib
+│           ├── example_50.joblib
+│           ├── example_51.joblib
+│           ├── example_52.joblib
+│           ├── example_53.joblib
+│           ├── example_54.joblib
+│           ├── example_55.joblib
+│           ├── example_56.joblib
+│           ├── example_57.joblib
+│           ├── example_58.joblib
+│           ├── example_59.joblib
+│           ├── example_5.joblib
+│           ├── example_60.joblib
+│           ├── example_61.joblib
+│           ├── example_62.joblib
+│           ├── example_63.joblib
+│           ├── example_64.joblib
+│           ├── example_65.joblib
+│           ├── example_66.joblib
+│           ├── example_67.joblib
+│           ├── example_68.joblib
+│           ├── example_69.joblib
+│           ├── example_6.joblib
+│           ├── example_70.joblib
+│           ├── example_71.joblib
+│           ├── example_72.joblib
+│           ├── example_73.joblib
+│           ├── example_74.joblib
+│           ├── example_75.joblib
+│           ├── example_76.joblib
+│           ├── example_7.joblib
+│           ├── example_8.joblib
+│           ├── example_9.joblib
+│           ├── hyperparameter_ranges.joblib
+│           ├── hyperparameter_types.joblib
+│           ├── meta_results.json
+│           ├── model_dropout_rate.joblib
+│           ├── model_learning_rate.joblib
+│           ├── model_momentum.joblib
+│           ├── model_num_channels.joblib
+│           ├── model_optimizer.joblib
+│           ├── model_weight_decay.joblib
+│           ├── scaler_dropout_rate.joblib
+│           ├── scaler_learning_rate.joblib
+│           ├── scaler_momentum.joblib
+│           ├── scaler_num_channels.joblib
+│           ├── scaler_optimizer.joblib
+│           └── scaler_weight_decay.joblib
+├── __pycache__
+│   ├── cifar_core.cpython-312.pyc
+│   ├── cifar_meta_model.cpython-312.pyc
+│   ├── cifar_reporting.cpython-312.pyc
+│   ├── cifar_training.cpython-312.pyc
+│   └── unified_cifar_training.cpython-312.pyc
+├── reorganize_project.py
+├── reports
+│   ├── cifar10
+│   │   ├── cifar10_10
+│   │   │   ├── cifar10_10.log
+│   │   │   ├── meta_model
+│   │   │   │   ├── best_config.json
+│   │   │   │   ├── categorical_values.joblib
+│   │   │   │   ├── encoder_optimizer.joblib
+│   │   │   │   ├── example_0.joblib
+│   │   │   │   ├── example_100.joblib
+│   │   │   │   ├── example_101.joblib
+│   │   │   │   ├── example_102.joblib
+│   │   │   │   ├── example_103.joblib
+│   │   │   │   ├── example_104.joblib
+│   │   │   │   ├── example_105.joblib
+│   │   │   │   ├── example_106.joblib
+│   │   │   │   ├── example_107.joblib
+│   │   │   │   ├── example_108.joblib
+│   │   │   │   ├── example_109.joblib
+│   │   │   │   ├── example_110.joblib
+│   │   │   │   ├── example_111.joblib
+│   │   │   │   ├── example_114.joblib
+│   │   │   │   ├── example_115.joblib
+│   │   │   │   ├── example_116.joblib
+│   │   │   │   ├── example_117.joblib
+│   │   │   │   ├── example_118.joblib
+│   │   │   │   ├── example_119.joblib
+│   │   │   │   ├── example_120.joblib
+│   │   │   │   ├── example_121.joblib
+│   │   │   │   ├── example_122.joblib
+│   │   │   │   ├── example_123.joblib
+│   │   │   │   ├── example_124.joblib
+│   │   │   │   ├── example_125.joblib
+│   │   │   │   ├── example_126.joblib
+│   │   │   │   ├── example_127.joblib
+│   │   │   │   ├── example_128.joblib
+│   │   │   │   ├── example_129.joblib
+│   │   │   │   ├── example_130.joblib
+│   │   │   │   ├── example_131.joblib
+│   │   │   │   ├── example_132.joblib
+│   │   │   │   ├── example_133.joblib
+│   │   │   │   ├── example_134.joblib
+│   │   │   │   ├── example_136.joblib
+│   │   │   │   ├── example_137.joblib
+│   │   │   │   ├── example_138.joblib
+│   │   │   │   ├── example_139.joblib
+│   │   │   │   ├── example_140.joblib
+│   │   │   │   ├── example_141.joblib
+│   │   │   │   ├── example_142.joblib
+│   │   │   │   ├── example_143.joblib
+│   │   │   │   ├── example_144.joblib
+│   │   │   │   ├── example_145.joblib
+│   │   │   │   ├── example_146.joblib
+│   │   │   │   ├── example_147.joblib
+│   │   │   │   ├── example_148.joblib
+│   │   │   │   ├── example_149.joblib
+│   │   │   │   ├── example_150.joblib
+│   │   │   │   ├── example_151.joblib
+│   │   │   │   ├── example_152.joblib
+│   │   │   │   ├── example_153.joblib
+│   │   │   │   ├── example_154.joblib
+│   │   │   │   ├── example_155.joblib
+│   │   │   │   ├── example_156.joblib
+│   │   │   │   ├── example_157.joblib
+│   │   │   │   ├── example_158.joblib
+│   │   │   │   ├── example_159.joblib
+│   │   │   │   ├── example_160.joblib
+│   │   │   │   ├── example_161.joblib
+│   │   │   │   ├── example_162.joblib
+│   │   │   │   ├── example_163.joblib
+│   │   │   │   ├── example_164.joblib
+│   │   │   │   ├── example_165.joblib
+│   │   │   │   ├── example_166.joblib
+│   │   │   │   ├── example_1.joblib
+│   │   │   │   ├── example_26.joblib
+│   │   │   │   ├── example_27.joblib
+│   │   │   │   ├── example_28.joblib
+│   │   │   │   ├── example_29.joblib
+│   │   │   │   ├── example_2.joblib
+│   │   │   │   ├── example_30.joblib
+│   │   │   │   ├── example_31.joblib
+│   │   │   │   ├── example_32.joblib
+│   │   │   │   ├── example_33.joblib
+│   │   │   │   ├── example_34.joblib
+│   │   │   │   ├── example_35.joblib
+│   │   │   │   ├── example_38.joblib
+│   │   │   │   ├── example_39.joblib
+│   │   │   │   ├── example_3.joblib
+│   │   │   │   ├── example_40.joblib
+│   │   │   │   ├── example_41.joblib
+│   │   │   │   ├── example_42.joblib
+│   │   │   │   ├── example_43.joblib
+│   │   │   │   ├── example_44.joblib
+│   │   │   │   ├── example_45.joblib
+│   │   │   │   ├── example_46.joblib
+│   │   │   │   ├── example_47.joblib
+│   │   │   │   ├── example_48.joblib
+│   │   │   │   ├── example_49.joblib
+│   │   │   │   ├── example_4.joblib
+│   │   │   │   ├── example_50.joblib
+│   │   │   │   ├── example_51.joblib
+│   │   │   │   ├── example_52.joblib
+│   │   │   │   ├── example_53.joblib
+│   │   │   │   ├── example_54.joblib
+│   │   │   │   ├── example_55.joblib
+│   │   │   │   ├── example_56.joblib
+│   │   │   │   ├── example_57.joblib
+│   │   │   │   ├── example_58.joblib
+│   │   │   │   ├── example_59.joblib
+│   │   │   │   ├── example_5.joblib
+│   │   │   │   ├── example_60.joblib
+│   │   │   │   ├── example_61.joblib
+│   │   │   │   ├── example_62.joblib
+│   │   │   │   ├── example_63.joblib
+│   │   │   │   ├── example_64.joblib
+│   │   │   │   ├── example_65.joblib
+│   │   │   │   ├── example_66.joblib
+│   │   │   │   ├── example_67.joblib
+│   │   │   │   ├── example_68.joblib
+│   │   │   │   ├── example_69.joblib
+│   │   │   │   ├── example_6.joblib
+│   │   │   │   ├── example_70.joblib
+│   │   │   │   ├── example_71.joblib
+│   │   │   │   ├── example_72.joblib
+│   │   │   │   ├── example_73.joblib
+│   │   │   │   ├── example_74.joblib
+│   │   │   │   ├── example_75.joblib
+│   │   │   │   ├── example_76.joblib
+│   │   │   │   ├── example_77.joblib
+│   │   │   │   ├── example_78.joblib
+│   │   │   │   ├── example_79.joblib
+│   │   │   │   ├── example_7.joblib
+│   │   │   │   ├── example_80.joblib
+│   │   │   │   ├── example_81.joblib
+│   │   │   │   ├── example_82.joblib
+│   │   │   │   ├── example_83.joblib
+│   │   │   │   ├── example_84.joblib
+│   │   │   │   ├── example_85.joblib
+│   │   │   │   ├── example_86.joblib
+│   │   │   │   ├── example_87.joblib
+│   │   │   │   ├── example_88.joblib
+│   │   │   │   ├── example_89.joblib
+│   │   │   │   ├── example_8.joblib
+│   │   │   │   ├── example_90.joblib
+│   │   │   │   ├── example_91.joblib
+│   │   │   │   ├── example_92.joblib
+│   │   │   │   ├── example_93.joblib
+│   │   │   │   ├── example_96.joblib
+│   │   │   │   ├── example_97.joblib
+│   │   │   │   ├── example_98.joblib
+│   │   │   │   ├── example_99.joblib
+│   │   │   │   ├── example_9.joblib
+│   │   │   │   ├── hyperparameter_ranges.joblib
+│   │   │   │   ├── hyperparameter_types.joblib
+│   │   │   │   ├── model_batch_size.joblib
+│   │   │   │   ├── model_dropout_rate.joblib
+│   │   │   │   ├── model_learning_rate.joblib
+│   │   │   │   ├── model_momentum.joblib
+│   │   │   │   ├── model_num_channels.joblib
+│   │   │   │   ├── model_num_classes.joblib
+│   │   │   │   ├── model_optimizer.joblib
+│   │   │   │   ├── model_weight_decay.joblib
+│   │   │   │   ├── optimization_summary.json
+│   │   │   │   ├── partial_best_config.json
+│   │   │   │   ├── scaler_batch_size.joblib
+│   │   │   │   ├── scaler_dropout_rate.joblib
+│   │   │   │   ├── scaler_learning_rate.joblib
+│   │   │   │   ├── scaler_momentum.joblib
+│   │   │   │   ├── scaler_num_channels.joblib
+│   │   │   │   ├── scaler_num_classes.joblib
+│   │   │   │   ├── scaler_optimizer.joblib
+│   │   │   │   └── scaler_weight_decay.joblib
+│   │   │   ├── meta_model.log
+│   │   │   └── training.log
+│   │   ├── cifar10_20
+│   │   │   └── training.log
+│   │   ├── cifar10_30
+│   │   │   └── training.log
+│   │   ├── cifar10_40
+│   │   │   └── training.log
+│   │   └── cifar10_multi
+│   │       └── training.log
+│   └── cifar100
+│       ├── cifar100_10
+│       ├── cifar100_20
+│       ├── cifar100_30
+│       ├── cifar100_40
+│       └── cifar100_multi
+├── requirements-server.txt
+├── requirements.txt
+├── requirements-web.txt
+├── server.log
+├── server.pid
+├── setup.sh
+├── src
+│   └── training
+│       └── results
+│           └── cifar10_100pct_20250618_215220
+│               └── model.pth
+├── train_clean.sh
+├── trained
+│   ├── cifa10
+│   │   ├── cifar10_multisamplesize_meta_model.pth
+│   │   └── cifar10_multisamplesize_trained.pth
+│   └── cifa100_transfer
+│       ├── cifar100_best_model.pth
+│       └── cifar100_multisamplesize_trained.pth
+├── training_history.png
+├── train_model.sh
+├── train_new.sh
+├── train.sh
+├── tree.txt
+├── unified_cifar_training.log
+├── unified_cifar_training.py.bak
+└── website
+    ├── app.py
+    ├── clear_reports.sh
+    ├── docs -> ../docs/
+    ├── fix_reports.py
+    ├── flask_server.log
+    ├── flask_server.pid
+    ├── index.html
+    ├── instance
+    │   ├── server.log
+    │   └── server.pid
+    ├── __pycache__
+    │   ├── app.cpython-312.pyc
+    │   └── server.cpython-312.pyc
+    ├── reports -> ../reports/
+    └── server.sh
+
+121 directories, 1146 files

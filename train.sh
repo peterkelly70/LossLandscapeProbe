@@ -88,7 +88,7 @@ show_menu() {
 # Function to train a single sample size
 train_sample() {
     local sample_size=$1
-    local output_dir="reports/${DATASET}_${sample_size}"
+    local output_dir="reports/${DATASET}/${DATASET}_${sample_size}"
     local model_dir="models/${DATASET}/${DATASET}_${sample_size}"
     local checkpoint_dir="${model_dir}/checkpoints"
     local meta_model_dir="${model_dir}/meta_model"
@@ -107,64 +107,23 @@ train_sample() {
     echo -e "${GREEN}🚀 Training ${DATASET} (${sample_size}%) - ${EPOCHS} epochs${NC}"
     echo -e "💾 Logs: ${log_file}\n"
     
-    # Start training with progress bars
-    {
-        python -c "
-import sys
-import re
-from tqdm import tqdm
-
-# Initialize progress bars
-phase_pbar = tqdm(desc='Phase', bar_format='{desc}: {bar}')
-epoch_pbar = tqdm(total=${EPOCHS}, desc='Epochs', 
-                 bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
-
-# Update function
-def update_progress(line):
-    line = line.strip()
+    # Start training with visible progress bars
+    echo -e "${GREEN}Starting training with visible progress bars...${NC}"
     
-    # Update phase
-    if 'Starting meta-model' in line:
-        phase_pbar.set_description('Phase: 🔍 Meta-Model')
-    elif 'Starting model training' in line:
-        phase_pbar.set_description('Phase: 🏋️ Training')
-    elif 'Testing model' in line:
-        phase_pbar.set_description('Phase: 🧪 Testing')
+    # Copy our working visible_progress.py script to the output directory
+    cp "$(dirname "$0")/visible_progress.py" "${output_dir}/visible_progress.py"
+    chmod +x "${output_dir}/visible_progress.py"
     
-    # Update epoch progress
-    epoch_match = re.search(r'Epoch (\d+)/\d+.*?Loss: ([\d.]+).*?Acc: ([\d.]+)%', line)
-    if epoch_match:
-        epoch, loss, acc = epoch_match.groups()
-        epoch_pbar.update(1)
-        epoch_pbar.set_postfix({'loss': f'{float(loss):.3f}', 'acc': f'{float(acc):.1f}%'})
-    
-    # Clear screen and redraw
-    print('\033[2J\033[H', end='')  # Clear screen and move cursor to top
-    print(phase_pbar, flush=True)
-    print(epoch_pbar, flush=True)
-
-# Main loop
-try:
-    while True:
-        line = sys.stdin.readline()
-        if not line:
-            break
-        update_progress(line)
-        
-except KeyboardInterrupt:
-    print("\nTraining interrupted")
-finally:
-    phase_pbar.close()
-    epoch_pbar.close()
-" | python unified_cifar_training.py \
+    # Run the training with visible progress
+    cd "$(dirname "$0")" && python "${output_dir}/visible_progress.py" \
         --dataset "${DATASET}" \
         --sample-size "${sample_size}" \
         --epochs "${EPOCHS}" \
         --outdir "${output_dir}" \
         $( [ "${META_MODEL_ONLY}" = true ] && echo "--meta-model-only" ) \
         $( [ "${SAVE_MODEL}" = true ] && echo "--save-model" ) \
-        $( [ "${GENERATE_REPORT}" = true ] && echo "--generate-report" )
-    } 2>&1 | tee "${log_file}" >/dev/null  # Suppress duplicate output
+        $( [ "${GENERATE_REPORT}" = true ] && echo "--generate-report" ) \
+        | tee -a "${log_file}"
     
     if [ ${PIPESTATUS[0]} -eq 0 ]; then
         echo -e "${GREEN}Training completed successfully!${NC}"

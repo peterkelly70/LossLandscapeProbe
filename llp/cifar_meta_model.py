@@ -1,0 +1,1267 @@
+#!/usr/bin/env python3
+"""
+CIFAR Meta-Model Module
+======================
+
+Hyperparameter prediction and meta-model optimization for CIFAR datasets.
+This module handles:
+- Meta-model training
+- Hyperparameter prediction
+- Configuration evaluation
+"""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torch.optim.lr_scheduler as lr_scheduler
+import torchvision.models as models
+import numpy as np
+import logging
+from pathlib import Path
+import json
+import time
+import random
+import math
+import traceback
+import copy
+from dataclasses import dataclass, field, asdict
+from typing import Dict, List, Tuple, Any, Optional, Callable, Union
+from datetime import datetime, timedelta
+
+# For type hints
+from torch.utils.data import DataLoader
+from torch import Tensor
+
+# Import our modular components
+from .meta_model_components.config import MetaModelConfig
+from .meta_model_components.training import train_one_epoch, evaluate_model, create_optimizer
+from .meta_model_components.utils import convert_to_serializable, setup_logging
+from .meta_model_components.hyperparameter_optimization import get_hyperparameter_space, sample_hyperparameter_configs, evaluate_configuration
+from .meta_model_components.meta_model import MetaModel, extract_meta_features, create_meta_model_datasets
+
+# Import LLP modules
+from .meta_probing import MetaProbing
+from .meta_model import HyperparameterPredictor, DatasetFeatureExtractor
+from .cifar_core import create_model, get_cifar_loaders
+from .data_sampling import ConfigEvaluation, SuccessiveHalving, Hyperband
+from .hyperparameter_utils import (
+    HyperparameterRange, HyperparameterSampler, 
+    sample_hyperparameter_configs, generate_perturbed_configs
+)
+
+logger = logging.getLogger(__name__)
+
+
+class CIFARMetaModelOptimizer:
+    """CIFAR Meta-Model Optimizer for hyperparameter optimization.
+    
+    This class handles the meta-model training and optimization process for
+    CIFAR datasets, including parallel execution timing and metrics.
+    
+    Args:
+        config: Optional configuration object
+        **kwargs: Additional configuration parameters (overrides config)
+    """
+    
+    def __init__(self, config: Optional[MetaModelConfig] = None, **kwargs):
+        # Store parallel timing information
+        self._parallel_timing_data = {
+            'batch_times': [],
+            'parallel_efficiencies': [],
+            'start_time': time.time(),
+            'parallel_mode': 'none',
+            'num_workers': 1
+        }
+        """
+        Initialize the meta-model optimizer with support for multiple data subsets and hyperparameter perturbations.
+        
+        Args:
+            config: Configuration object with all parameters. If None, uses defaults.
+            **kwargs: Alternative way to provide parameters that will override the config.
+        """
+        # Create config from defaults, update with provided config, then with kwargs
+        self.config = MetaModelConfig()
+        if config is not None:
+            for key, value in config.__dict__.items():
+                if hasattr(self.config, key):
+                    setattr(self.config, key, value)
+        
+        # Override with any kwargs
+        for key, value in kwargs.items():
+            if hasattr(self.config, key):
+                setattr(self.config, key, value)
+        
+        # Set random seeds for reproducibility
+        if self.config.random_seed is not None:
+            random.seed(self.config.random_seed)
+            np.random.seed(self.config.random_seed)
+            torch.manual_seed(self.config.random_seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(self.config.random_seed)
+        
+        # Set up run directory
+        self.run_dir = Path(self.config.run_dir) if self.config.run_dir is not None else None
+        if self.run_dir:
+            self.run_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Set up logging
+        self._setup_logging()
+        logger.info("Initializing CIFAR Meta-Model Optimizer")
+        logger.info(f"Configuration: {self.config}")
+        
+        # Set device
+        self.device = torch.device(self.config.device)
+        logger.info(f"Using device: {self.device}")
+        if self.device.type == 'cuda':
+            logger.info(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+        
+        # Initialize meta-model components
+        self.meta_probing = None
+        self.best_hyperparams = None
+        self.hyperparam_sampler = HyperparameterSampler()
+        
+        # Load dataset with pin_memory if using CUDA
+        pin_memory = self.device.type == 'cuda'
+        self.train_loader, self.val_loader, self.num_classes = get_cifar_loaders(
+            dataset=self.config.dataset,
+            batch_size=self.config.batch_size,
+            pin_memory=pin_memory
+        )
+        
+        # Initialize data subsets
+        self.data_subsets = []
+        self._init_data_subsets()
+    
+    def _init_data_subsets(self):
+        """Initialize data subsets for meta-model training."""
+        logger.info(f"Initializing {self.config.num_data_subsets} data subsets "
+                  f"(size: {self.config.subset_size*100:.1f}% of training data)")
+        
+        # Get the full training dataset
+        train_dataset = self.train_loader.dataset
+        
+        # Generate multiple data subsets
+        self.data_subsets = get_multiple_subsets(
+            dataset=train_dataset,
+            num_subsets=self.config.num_data_subsets,
+            subset_size=self.config.subset_size,
+            ensure_disjoint=self.config.ensure_disjoint_subsets,
+            base_seed=self.config.random_seed
+        )
+        
+        logger.info(f"Created {len(self.data_subsets)} data subsets with sizes: "
+                  f"{[len(subset.indices) for subset in self.data_subsets]}")
+    
+    def _get_subset_loader(self, subset_idx: int, batch_size: Optional[int] = None) -> torch.utils.data.DataLoader:
+        """
+        Get a DataLoader for a specific data subset.
+        
+        Args:
+            subset_idx: Index of the subset to use
+            batch_size: Optional batch size (defaults to config.batch_size)
+            
+        Returns:
+            DataLoader for the specified subset
+        """
+        if not self.data_subsets:
+            raise ValueError("Data subsets not initialized. Call _init_data_subsets() first.")
+            
+        if subset_idx < 0 or subset_idx >= len(self.data_subsets):
+            raise ValueError(f"Invalid subset index: {subset_idx}. Must be between 0 and {len(self.data_subsets)-1}.")
+        
+        subset = self.data_subsets[subset_idx]
+        
+        # Create a Subset with the specified indices
+        subset_dataset = torch.utils.data.Subset(
+            self.train_loader.dataset,
+            indices=subset.indices.tolist() if hasattr(subset.indices, 'tolist') else subset.indices
+        )
+        
+        # Create a new DataLoader with the subset
+        return torch.utils.data.DataLoader(
+            subset_dataset,
+            batch_size=batch_size or self.config.batch_size,
+            shuffle=True,
+            num_workers=2,
+            pin_memory=torch.cuda.is_available()
+        )
+        
+    def _setup_logging(self):
+        """Set up logging to use a single training.log file in the run directory."""
+        # Get the root logger to capture all logs
+        logger = logging.getLogger()
+        
+        # Clear any existing handlers to prevent duplicates
+        logger.handlers = []
+        
+        # Set log level
+        logger.setLevel(logging.INFO)
+        
+        # Create formatter
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        # Add console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+        # Add file handler to training.log in the run directory
+        if self.run_dir:
+            log_file = self.run_dir / 'training.log'
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+            
+            # Log the log file location
+            logger.info(f"Log file: {log_file}")
+            logger.info(f"Run directory: {self.run_dir}")
+    
+    def _get_hyperparameter_space(self):
+        """
+        Define the hyperparameter search space.
+        
+        Returns:
+            Dictionary with hyperparameter ranges and types
+        """
+        return {
+            # Model architecture
+            'num_channels': {'type': 'categorical', 'values': [16, 32, 64, 128]},
+            'dropout_rate': {'type': 'categorical', 'values': [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]},
+            
+            # Training hyperparameters
+            'batch_size': {'type': 'categorical', 'values': [32, 64, 128, 256]},
+            'max_epochs': {'type': 'categorical', 'values': [10, 20, 30, 50]},
+            'optimizer': {'type': 'categorical', 'values': ['sgd', 'adam']},  # Only supported optimizers
+            'learning_rate': {'type': 'log_float', 'min': 1e-4, 'max': 1e-1},
+            'momentum': {'type': 'float', 'min': 0.0, 'max': 0.99},
+            'weight_decay': {'type': 'log_float', 'min': 1e-5, 'max': 1e-2},
+            'use_lr_scheduler': {'type': 'categorical', 'values': [True, False]},
+            'lr_decay_factor': {'type': 'float', 'min': 0.1, 'max': 0.9},
+            'lr_patience': {'type': 'int', 'min': 2, 'max': 10}
+        }
+    
+    def _sample_hyperparameter_configs(
+        self, 
+        num_configs: int, 
+        base_config: Optional[Dict[str, Any]] = None,
+        perturbation_scale: Optional[float] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Sample hyperparameter configurations from the search space.
+        
+        Args:
+            num_configs: Number of configurations to sample
+            base_config: Optional base configuration to perturb
+            perturbation_scale: Scale of perturbations (0.0 to 1.0). If None, uses config.perturbation_scale
+            
+        Returns:
+            List of hyperparameter configurations
+        """
+        if base_config is not None:
+            # Generate perturbations around the base configuration
+            scale = perturbation_scale if perturbation_scale is not None else self.config.perturbation_scale
+            return generate_perturbed_configs(
+                base_config=base_config,
+                num_perturbations=num_configs,
+                perturbation_scale=scale,
+                seed=self.config.random_seed
+            )
+        else:
+            # Sample new configurations
+            return sample_hyperparameter_configs(
+                num_configs=num_configs,
+                seed=self.config.random_seed
+            )
+    
+    def optimize_hyperparameters(self) -> Dict[str, Any]:
+        """
+        Train the meta-model using hyperparameter configurations and their evaluations.
+        
+        This method samples hyperparameter configurations, evaluates them on data subsets,
+        extracts meta-features, and trains a meta-model to predict optimal hyperparameters.
+        
+        Returns:
+            Dictionary containing the best hyperparameters found
+        """
+        try:
+            from tqdm import tqdm
+            use_tqdm = True
+        except ImportError:
+            use_tqdm = False
+            
+        logger.info("Starting meta-model hyperparameter optimization...")
+        print("🔍 Starting meta-model hyperparameter optimization...")
+        
+        # Sample hyperparameter configurations to evaluate
+        # Use configs_per_sample attribute if available, otherwise default to 10
+        num_configs = getattr(self.config, 'configs_per_sample', 
+                         getattr(self.config, 'num_configs', 10))
+        
+        logger.info(f"Sampling {num_configs} hyperparameter configurations...")
+        print(f"🔍 Sampling {num_configs} hyperparameter configurations...")
+        configs = self._sample_hyperparameter_configs(
+            num_configs=num_configs
+            # Note: The method uses self.config.random_seed internally
+        )
+        
+        # Initialize storage for evaluation results
+        best_val_accuracy = 0.0
+        best_config = None
+        meta_features = []
+        meta_targets = []
+        
+        # Evaluate each configuration on multiple data subsets
+        total_configs = len(configs)
+        total_subsets = len(self.data_subsets) if hasattr(self, 'data_subsets') else 1
+        total_evaluations = total_configs * total_subsets
+        evaluation_counter = 0
+        
+        # Store these values as instance variables for progress tracking
+        self.total_evaluations = total_evaluations
+        self.current_evaluation = 0
+        
+        print(f"⏳ Total configurations to evaluate: {total_configs}")
+        print(f"⏳ Total data subsets: {total_subsets}")
+        print(f"⏳ Total evaluations: {total_evaluations}")
+        
+        # Create progress bar for configurations
+        if use_tqdm:
+            config_pbar = tqdm(total=total_configs, desc="Meta-Model Configs", 
+                              bar_format='{desc}: {bar} {percentage:3.0f}% | {n_fmt}/{total_fmt}')
+        
+        for config_idx, config in enumerate(configs):
+            logger.info(f"\nEvaluating configuration {config_idx+1}/{total_configs} [{(config_idx/total_configs)*100:.1f}% configurations]")
+            print(f"\n🔄 Evaluating configuration {config_idx+1}/{total_configs} [{(config_idx/total_configs)*100:.1f}% configurations]")
+            print(f"📊 Configuration: {convert_to_serializable(config)}")
+            
+            # Create progress bar for datasets
+            if use_tqdm:
+                dataset_pbar = tqdm(total=total_subsets, desc=f"Dataset Progress", 
+                                  bar_format='{desc}: {bar} {percentage:3.0f}% | {n_fmt}/{total_fmt}')
+            
+            # Evaluate on multiple data subsets
+            subset_results = []
+            
+            for subset_idx in range(total_subsets):
+                # Update counter for overall progress tracking
+                evaluation_counter += 1
+                self.current_evaluation = evaluation_counter
+                
+                # Simple overall progress calculation
+                overall_progress = (evaluation_counter / total_evaluations) * 100
+                
+                logger.info(f"Evaluating dataset {subset_idx+1}/{total_subsets} "
+                          f"[Overall Progress: {evaluation_counter}/{total_evaluations} ({overall_progress:.1f}%)]")
+                print(f"📈 Evaluating dataset {subset_idx+1}/{total_subsets} "
+                      f"[Overall Progress: {evaluation_counter}/{total_evaluations} ({overall_progress:.1f}%)]")
+                
+                # Update dataset progress bar
+                if use_tqdm:
+                    dataset_pbar.update(1)
+                    dataset_pbar.refresh()
+                
+                # Use reduced resource level for faster evaluation
+                resource_level = getattr(self.config, 'min_resource', 0.2)
+                
+                # Evaluate this configuration on this subset
+                try:
+                    result = self._evaluate_configuration(
+                        config=config,
+                        subset_idx=subset_idx,
+                        resource_level=resource_level
+                    )
+                    subset_results.append(result)
+                    print(f"✅ Evaluation complete - Accuracy: {result.get('val_accuracy', 0.0):.4f}")
+                except Exception as e:
+                    logger.error(f"Error evaluating configuration on subset {subset_idx+1}: {str(e)}")
+                    print(f"❌ Error evaluating configuration on subset {subset_idx+1}: {str(e)}")
+                    # Add a placeholder result with error information
+                    result = {
+                        'error': str(e),
+                        'val_accuracy': 0.0,
+                        'config': config,
+                        'subset_idx': subset_idx
+                    }
+                    subset_results.append(result)
+            
+            # Log memory usage if using CUDA
+            if use_tqdm:
+                dataset_pbar.update(1)
+                dataset_pbar.refresh()
+                
+            # Use reduced resource level for faster evaluation
+            resource_level = getattr(self.config, 'min_resource', 0.2)
+                
+            # Evaluate this configuration on this subset
+            try:
+                result = self._evaluate_configuration(
+                    config=config,
+                    subset_idx=subset_idx,
+                    resource_level=resource_level
+                )
+                subset_results.append(result)
+                print(f"✅ Evaluation complete - Accuracy: {result.get('val_accuracy', 0.0):.4f}")
+            except Exception as e:
+                logger.error(f"Error evaluating configuration on subset {subset_idx+1}: {str(e)}")
+                print(f"❌ Error evaluating configuration on subset {subset_idx+1}: {str(e)}")
+                # Add a placeholder result with error information
+                result = {
+                    'error': str(e),
+                    'val_accuracy': 0.0,
+                    'config': config,
+                    'subset_idx': subset_idx
+                }
+                subset_results.append(result)
+        
+        # Log memory usage if using CUDA
+        if self.device.type == 'cuda':
+            logger.info(f"CUDA memory allocated: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+            
+        # Close dataset progress bar
+        if use_tqdm:
+            dataset_pbar.close()
+            
+        # Update configuration progress bar
+        if use_tqdm:
+            config_pbar.update(1)
+            config_pbar.refresh()
+            
+        # Extract meta-features and targets from results
+        for result in subset_results:
+            if 'error' not in result and 'meta_features' in result:
+                meta_features.append(result['meta_features'])
+                meta_targets.append(result['val_accuracy'])
+                    
+                # Track best configuration
+                if result['val_accuracy'] > best_val_accuracy:
+                    best_val_accuracy = result['val_accuracy']
+                    best_config = config
+                    print(f"🏆 New best configuration found! Accuracy: {best_val_accuracy:.4f}")
+        
+    # Store meta-features and targets for later use
+    self.meta_features = meta_features
+    self.meta_targets = meta_targets
+    
+    # Define number of epochs based on resource level
+    max_epochs = getattr(self.config, 'max_epochs', 10)  # Default to 10 if not specified
+    actual_epochs = int(max_epochs * resource_level)
+    
+    # Use a simple model for meta-model training
+    # We don't need the actual model_name or num_classes for meta-model training
+    # Just create a simple MLP for the meta-model
+    input_dim = len(self.meta_features[0]) if hasattr(self, 'meta_features') and self.meta_features else 10
+    output_dim = 1  # For regression tasks like hyperparameter optimization
+    
+    # Create a simple MLP model
+    model = torch.nn.Sequential(
+        torch.nn.Linear(input_dim, 64),
+        torch.nn.ReLU(),
+        torch.nn.Linear(64, 32),
+        torch.nn.ReLU(),
+        torch.nn.Linear(32, output_dim)
+    ).to(self.device)
+    
+    # Prepare optimizer configuration
+    optimizer_config = {
+        'optimizer': 'adam',  # Default to Adam
+        'learning_rate': 0.001,
+        'weight_decay': 0.0001
+    }
+    
+    # Prepare data loaders for meta-model training
+    if hasattr(self, 'meta_features') and hasattr(self, 'meta_targets') and self.meta_features and self.meta_targets:
+            # Create dataset from meta-features and meta-targets
+            meta_features = torch.tensor(self.meta_features, dtype=torch.float32)
+            meta_targets = torch.tensor(self.meta_targets, dtype=torch.float32).view(-1, 1)
+            meta_dataset = torch.utils.data.TensorDataset(meta_features, meta_targets)
+            
+            # Create data loaders
+            dataset_size = len(meta_dataset)
+            train_size = int(0.8 * dataset_size)
+            val_size = dataset_size - train_size
+            
+            # Split into train and validation sets
+            train_dataset, val_dataset = torch.utils.data.random_split(
+                meta_dataset, [train_size, val_size]
+            )
+            
+            # Create data loaders
+            train_loader = torch.utils.data.DataLoader(
+                train_dataset, batch_size=8, shuffle=True, num_workers=0
+            )
+            val_loader = torch.utils.data.DataLoader(
+                val_dataset, batch_size=8, shuffle=False, num_workers=0
+            )
+        else:
+            # Create dummy data if no meta-features are available
+            logger.warning("No meta-features available, creating dummy data for meta-model training")
+            dummy_features = torch.randn(20, input_dim)
+            dummy_targets = torch.randn(20, 1)
+            dummy_dataset = torch.utils.data.TensorDataset(dummy_features, dummy_targets)
+            
+            # Split into train and validation sets
+            train_size = 16
+            val_size = 4
+            train_dataset, val_dataset = torch.utils.data.random_split(
+                dummy_dataset, [train_size, val_size]
+            )
+            
+            # Create data loaders
+            train_loader = torch.utils.data.DataLoader(
+                train_dataset, batch_size=4, shuffle=True, num_workers=0
+            )
+            val_loader = torch.utils.data.DataLoader(
+                val_dataset, batch_size=4, shuffle=False, num_workers=0
+            )
+        
+        # Define local training and evaluation functions
+        def train_one_epoch(model, train_loader, optimizer, device):
+            model.train()
+            total_loss = 0.0
+            for batch_idx, (data, target) in enumerate(train_loader):
+                data, target = data.to(device), target.to(device)
+                optimizer.zero_grad()
+                output = model(data)
+                loss = F.mse_loss(output, target)
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            return total_loss / len(train_loader)
+        
+        def evaluate_model(model, val_loader, device):
+            model.eval()
+            total_loss = 0.0
+            with torch.no_grad():
+                for data, target in val_loader:
+                    data, target = data.to(device), target.to(device)
+                    output = model(data)
+                    total_loss += F.mse_loss(output, target).item()
+            return total_loss / len(val_loader)
+        
+        # Create optimizer
+        optimizer = optim.Adam(model.parameters(), lr=optimizer_config['learning_rate'], 
+                              weight_decay=optimizer_config['weight_decay'])
+        
+        # Create scheduler
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+        
+        # Train the meta-model
+        logger.info(f"Training meta-model for {actual_epochs} epochs...")
+        best_val_loss = float('inf')
+        best_model_state = None
+        
+        for epoch in range(actual_epochs):
+            # Update progress for each epoch
+            epoch_progress = (epoch + 1) / actual_epochs
+            overall_progress = ((evaluation_counter - 1) / total_evaluations) + (epoch_progress / total_evaluations)
+            overall_progress_percent = overall_progress * 100
+            
+            logger.info(f"Epoch {epoch+1}/{actual_epochs} [Overall Progress: {overall_progress_percent:.1f}%]")
+            
+            # Train and evaluate
+            train_loss = train_one_epoch(model, train_loader, optimizer, self.device)
+            val_loss = evaluate_model(model, val_loader, self.device)
+            scheduler.step()
+            
+            logger.info(f"Train loss: {train_loss:.4f}, Val loss: {val_loss:.4f}")
+            
+            # Save best model
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = model.state_dict().copy()
+        
+        # Load best model
+        if best_model_state is not None:
+            model.load_state_dict(best_model_state)
+        
+        # Store the trained model
+        self.meta_model = model
+        
+        # Return the best configuration found
+        return best_config or configs[0] if configs else None
+        
+    # Note: Duplicate _setup_logging and _get_hyperparameter_space methods removed to fix lint warnings
+    # These methods are already defined earlier in the class
+
+    # Note: Duplicate _sample_hyperparameter_configs method removed to fix lint warnings
+    # This method is already defined earlier in the class at line 337
+                self.current_evaluation = evaluation_counter
+                
+                # Simple overall progress calculation
+                overall_progress = (evaluation_counter / total_evaluations) * 100
+                
+                logger.info(f"Evaluating dataset {subset_idx+1}/{total_subsets} "
+                          f"[Overall Progress: {evaluation_counter}/{total_evaluations} ({overall_progress:.1f}%)]")
+                
+                # Use reduced resource level for faster evaluation
+                resource_level = getattr(self.config, 'min_resource', 0.2)
+                
+                # Evaluate this configuration on this subset
+                try:
+                    result = self._evaluate_configuration(
+                        config=config,
+                        subset_idx=subset_idx,
+                        resource_level=resource_level
+                    )
+                    subset_results.append(result)
+                except Exception as e:
+                    logger.error(f"Error evaluating configuration on subset {subset_idx+1}: {str(e)}")
+                    # Add a placeholder result with error information
+                    result = {
+                        'error': str(e),
+                        'val_accuracy': 0.0,
+                        'config': config,
+                        'subset_idx': subset_idx
+                    }
+                    subset_results.append(result)
+        
+            # Log memory usage if using CUDA
+            if self.device.type == 'cuda':
+                logger.info(f"Starting training on {torch.cuda.get_device_name(0)}")
+                logger.info(f"Initial CUDA memory allocated: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+            
+            # Define number of epochs based on resource level
+            max_epochs = getattr(self.config, 'max_epochs', 10)  # Default to 10 if not specified
+            actual_epochs = int(max_epochs * resource_level)
+            
+            # Use a simple model for meta-model training
+            # We don't need the actual model_name or num_classes for meta-model training
+            # Just create a simple MLP for the meta-model
+            input_dim = len(self.meta_features[0]) if hasattr(self, 'meta_features') and self.meta_features else 10
+            output_dim = 1  # For regression tasks like hyperparameter optimization
+            
+            # Create a simple MLP model
+            model = torch.nn.Sequential(
+                torch.nn.Linear(input_dim, 64),
+                torch.nn.ReLU(),
+                torch.nn.Linear(64, 32),
+                torch.nn.ReLU(),
+                torch.nn.Linear(32, output_dim)
+            ).to(self.device)
+            
+            # Prepare optimizer configuration
+            optimizer_config = {
+                'optimizer': 'adam',  # Default to Adam
+                'learning_rate': 0.001,
+                'weight_decay': 0.0001
+            }
+            
+            # Prepare data loaders for meta-model training
+            if hasattr(self, 'meta_features') and hasattr(self, 'meta_targets') and self.meta_features and self.meta_targets:
+                # Create dataset from meta-features and meta-targets
+                meta_features = torch.tensor(self.meta_features, dtype=torch.float32)
+                meta_targets = torch.tensor(self.meta_targets, dtype=torch.float32).view(-1, 1)
+                meta_dataset = torch.utils.data.TensorDataset(meta_features, meta_targets)
+                
+                # Create data loaders
+                dataset_size = len(meta_dataset)
+                train_size = int(0.8 * dataset_size)
+                val_size = dataset_size - train_size
+                
+                # Split into train and validation sets
+                train_dataset, val_dataset = torch.utils.data.random_split(
+                    meta_dataset, [train_size, val_size]
+                )
+            
+                # Create data loaders
+                train_loader = torch.utils.data.DataLoader(
+                    train_dataset, batch_size=8, shuffle=True, num_workers=0
+                )
+                val_loader = torch.utils.data.DataLoader(
+                    val_dataset, batch_size=8, shuffle=False, num_workers=0
+                )
+            else:
+                # Create dummy data if no meta-features are available
+                logger.warning("No meta-features available, creating dummy data for meta-model training")
+                dummy_features = torch.randn(20, input_dim)
+                dummy_targets = torch.randn(20, 1)
+                dummy_dataset = torch.utils.data.TensorDataset(dummy_features, dummy_targets)
+                
+                # Split into train and validation sets
+                train_size = 16
+                val_size = 4
+                train_dataset, val_dataset = torch.utils.data.random_split(
+                    dummy_dataset, [train_size, val_size]
+                )
+                
+                # Create data loaders
+                train_loader = torch.utils.data.DataLoader(
+                    train_dataset, batch_size=4, shuffle=True, num_workers=0
+                )
+                val_loader = torch.utils.data.DataLoader(
+                    val_dataset, batch_size=4, shuffle=False, num_workers=0
+                )
+            
+            # Log CUDA information if available
+            if self.device.type == 'cuda':
+                logger.info(f"Starting training on {torch.cuda.get_device_name(0)}")
+                logger.info(f"Initial CUDA memory allocated: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+            
+            # Define helper function to create optimizer
+            def create_optimizer(model, optimizer_config):
+                """Create optimizer based on configuration"""
+                lr = optimizer_config.get('learning_rate', 0.001)
+                weight_decay = optimizer_config.get('weight_decay', 0.0001)
+                optimizer_type = optimizer_config.get('optimizer', 'adam').lower()
+                
+                if optimizer_type == 'adam':
+                    return torch.optim.Adam(
+                        model.parameters(),
+                        lr=lr,
+                        weight_decay=weight_decay,
+                        betas=(optimizer_config.get('beta1', 0.9), optimizer_config.get('beta2', 0.999)),
+                        eps=optimizer_config.get('eps', 1e-8)
+                    )
+                elif optimizer_type == 'adamw':
+                    return torch.optim.AdamW(
+                        model.parameters(),
+                        lr=lr,
+                        weight_decay=weight_decay,
+                        betas=(optimizer_config.get('beta1', 0.9), optimizer_config.get('beta2', 0.999)),
+                        eps=optimizer_config.get('eps', 1e-8)
+                    )
+                elif optimizer_type == 'sgd':
+                    return torch.optim.SGD(
+                        model.parameters(),
+                        lr=lr,
+                        momentum=optimizer_config.get('momentum', 0.9),
+                        weight_decay=weight_decay,
+                        nesterov=optimizer_config.get('nesterov', False)
+                    )
+                else:
+                    # Default to Adam
+                    logger.warning(f"Unknown optimizer type: {optimizer_type}, defaulting to Adam")
+                    return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+            
+            # Define training and evaluation functions for meta-model
+            # These functions are defined outside the loop to avoid scope issues
+            def train_one_epoch(model, loader, optimizer, device):
+                model.train()
+                running_loss = 0.0
+                total_samples = 0
+                
+                if loader is None:
+                    logger.error("train_loader is None! Cannot train model.")
+                    return float('inf')
+            
+                for inputs, targets in loader:
+                    inputs, targets = inputs.to(device), targets.to(device)
+                    optimizer.zero_grad()
+                    outputs = model(inputs)
+                    
+                    # MSE loss for regression
+                    loss = torch.nn.functional.mse_loss(outputs, targets)
+                    
+                    loss.backward()
+                    optimizer.step()
+                    
+                    running_loss += loss.item() * inputs.size(0)
+                    total_samples += inputs.size(0)
+                
+                return running_loss / total_samples if total_samples > 0 else float('inf')
+            
+            def evaluate_model(model, loader, device):
+                model.eval()
+                running_loss = 0.0
+                total_samples = 0
+                
+                if loader is None:
+                    logger.error("val_loader is None! Cannot evaluate model.")
+                    return -float('inf')
+                
+                with torch.no_grad():
+                    for inputs, targets in loader:
+                        inputs, targets = inputs.to(device), targets.to(device)
+                        outputs = model(inputs)
+                        
+                        # MSE loss for regression
+                        loss = torch.nn.functional.mse_loss(outputs, targets)
+                        
+                        running_loss += loss.item() * inputs.size(0)
+                        total_samples += inputs.size(0)
+                
+                # Return negative MSE as accuracy (higher is better)
+                return -running_loss / total_samples if total_samples > 0 else -float('inf')
+            
+            # Training loop
+            best_val_accuracy = float('-inf')
+            best_model_state = None
+            
+            # Epoch loop
+            for epoch in range(actual_epochs):
+                # Configure optimizer
+                if optimizer_config['optimizer'] in ['adam', 'adamw']:
+                    optimizer_config['beta1'] = getattr(self.config, 'beta1', 0.9)
+                    optimizer_config['beta2'] = getattr(self.config, 'beta2', 0.999)
+                    optimizer_config['eps'] = getattr(self.config, 'eps', 1e-8)
+                
+                # Create optimizer with the model
+                optimizer = create_optimizer(model, optimizer_config)
+            
+                # Create scheduler if specified
+                scheduler = None
+                if config.get('use_lr_scheduler', False):
+                    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                        optimizer,
+                        mode='max',
+                        factor=config.get('lr_decay_factor', 0.1),
+                        patience=config.get('lr_patience', 5),
+                        verbose=True
+                    )
+                
+                # Store loaders as instance attributes to avoid scope issues
+                self.train_loader = train_loader
+                self.val_loader = val_loader
+            
+                # Train for one epoch using instance attributes
+                train_loss = train_one_epoch(model, self.train_loader, optimizer, self.device)
+                
+                # Evaluate on validation set
+                val_accuracy = evaluate_model(model, self.val_loader, self.device)
+                
+                # Save best model
+                if val_accuracy > best_val_accuracy:
+                    best_val_accuracy = val_accuracy
+                    best_model_state = copy.deepcopy(model.state_dict())
+                    best_config_found = config  # Store the best config
+                
+                # Log progress
+                logger.info(f"Epoch {epoch+1}/{actual_epochs} - "
+                          f"Train Loss: {train_loss:.4f}, Val Accuracy: {val_accuracy:.4f} "
+                          f"[Overall Progress: {((epoch+1)/actual_epochs*100):.1f}%]")
+                
+                # Update scheduler if available
+                if scheduler is not None:
+                    scheduler.step(val_accuracy)
+            
+            # Final evaluation results
+            results = {
+                'val_accuracy': best_val_accuracy,
+                'model_state': best_model_state,
+                'config': best_config_found,  # Use the best config found instead of the last one
+                'epochs_trained': actual_epochs,
+                'resource_level': resource_level
+            }
+            
+            # Return the best hyperparameters found
+            return results
+            
+    def _evaluate_configuration(self, config, subset_idx=None, resource_level=0.2):
+        """
+        Evaluate a hyperparameter configuration on a specific data subset.
+        
+        Args:
+            config: Hyperparameter configuration to evaluate
+            subset_idx: Index of the data subset to evaluate on
+            resource_level: Resource level for training (fraction of epochs)
+            
+        Returns:
+            Dictionary containing evaluation results
+        """
+        # Set up data loaders for this subset
+        if hasattr(self, 'data_subsets') and subset_idx is not None:
+            # Handle different data subset structures
+            try:
+                if isinstance(self.data_subsets[subset_idx], dict):
+                    train_loader = self.data_subsets[subset_idx]['train']
+                    val_loader = self.data_subsets[subset_idx]['val']
+                else:
+                    # If it's not a dict, assume it's a DataSubset object with train and val attributes
+                    train_loader = getattr(self.data_subsets[subset_idx], 'train', None)
+                    val_loader = getattr(self.data_subsets[subset_idx], 'val', None)
+                    
+                    # If attributes don't exist, fall back to the main loaders
+                    if train_loader is None or val_loader is None:
+                        train_loader = self.train_loader
+                        val_loader = self.val_loader
+            except (TypeError, IndexError, KeyError):
+                # Fall back to the main loaders if there's any error
+                train_loader = self.train_loader
+                val_loader = self.val_loader
+        else:
+            # Use the full dataset if no subsets are available
+            train_loader = self.train_loader
+            val_loader = self.val_loader
+            
+        # Create a simple model for evaluation
+        # Use a default model if model_name is not available
+        if hasattr(self, 'model_name') and hasattr(self, 'num_classes'):
+            model = create_model(self.model_name, self.num_classes).to(self.device)
+        else:
+            # Create a simple MLP model as fallback
+            input_dim = 3 * 32 * 32  # CIFAR input size
+            output_dim = 10  # Default to 10 classes (CIFAR-10)
+            model = torch.nn.Sequential(
+                torch.nn.Flatten(),
+                torch.nn.Linear(input_dim, 128),
+                torch.nn.ReLU(),
+                torch.nn.Linear(128, 64),
+                torch.nn.ReLU(),
+                torch.nn.Linear(64, output_dim)
+            ).to(self.device)
+        
+        # Training loop
+        model.train()
+        best_val_accuracy = 0.0
+        train_losses = []
+        val_accuracies = []
+        best_model_state = None
+        
+        # Calculate actual epochs based on resource level
+        max_epochs = getattr(self.config, 'max_epochs', 10)  # Default to 10 if not specified
+        actual_epochs = int(max_epochs * resource_level)
+        
+        # Prepare optimizer configuration
+        optimizer_config = {
+            'optimizer': config.get('optimizer', 'adam'),
+            'learning_rate': config.get('learning_rate', 0.001),
+            'weight_decay': config.get('weight_decay', 0.0001),
+            'momentum': config.get('momentum', 0.9)
+        }
+        
+        # Create optimizer
+        optimizer = create_optimizer(model, optimizer_config)
+        
+        # Define training and evaluation functions
+        def train_one_epoch(model, loader, optimizer, device):
+            model.train()
+            running_loss = 0.0
+            total_samples = 0
+            
+            for inputs, targets in loader:
+                inputs, targets = inputs.to(device), targets.to(device)
+                optimizer.zero_grad()
+                outputs = model(inputs)
+                
+                # Handle different model output formats
+                if isinstance(outputs, tuple):
+                    outputs = outputs[0]
+                
+                # Handle different target shapes for loss calculation
+                if outputs.shape[1] == 1:  # Binary or regression
+                    targets = targets.float().view(-1, 1)
+                    loss = torch.nn.functional.mse_loss(outputs, targets)
+                else:  # Multi-class
+                    loss = torch.nn.functional.cross_entropy(outputs, targets)
+                
+                loss.backward()
+                optimizer.step()
+                
+                running_loss += loss.item() * inputs.size(0)
+                total_samples += inputs.size(0)
+            
+            return running_loss / total_samples if total_samples > 0 else float('inf')
+        
+        def evaluate_model(model, loader, device):
+            model.eval()
+            correct = 0
+            total = 0
+            
+            with torch.no_grad():
+                for inputs, targets in loader:
+                    inputs, targets = inputs.to(device), targets.to(device)
+                    outputs = model(inputs)
+                    
+                    # Handle different model output formats
+                    if isinstance(outputs, tuple):
+                        outputs = outputs[0]
+                    
+                    # For regression tasks
+                    if outputs.shape[1] == 1:
+                        # Just return MSE as a negative value (lower is better)
+                        targets = targets.float().view(-1, 1)
+                        return -torch.nn.functional.mse_loss(outputs, targets).item()
+                    
+                    # For classification tasks
+                    _, predicted = outputs.max(1)
+                    total += targets.size(0)
+                    correct += predicted.eq(targets).sum().item()
+            
+            return correct / total if total > 0 else 0.0
+        
+        # Training loop
+        for epoch in range(actual_epochs):
+            # Train for one epoch
+            train_loss = train_one_epoch(model, train_loader, optimizer, self.device)
+            train_losses.append(train_loss)
+            
+            # Evaluate on validation set
+            val_accuracy = evaluate_model(model, val_loader, self.device)
+            val_accuracies.append(val_accuracy)
+            
+            # Save best model
+            if val_accuracy > best_val_accuracy:
+                best_val_accuracy = val_accuracy
+                best_model_state = copy.deepcopy(model.state_dict())
+                
+            # Log progress
+            if (epoch + 1) % max(1, actual_epochs // 5) == 0 or (epoch + 1) == actual_epochs:
+                # Use our simple counter-based approach for overall progress
+                if hasattr(self, 'current_evaluation') and hasattr(self, 'total_evaluations'):
+                    # Calculate epoch fraction within the current evaluation
+                    epoch_fraction = (epoch + 1) / actual_epochs / self.total_evaluations
+                    
+                    # Overall progress is: completed evaluations + fraction of current evaluation
+                    completed_progress = (self.current_evaluation - 1) / self.total_evaluations
+                    overall_progress = (completed_progress + epoch_fraction) * 100
+                else:
+                    # Fallback to just epoch progress if tracking variables aren't available
+                    overall_progress = (epoch + 1) / actual_epochs * 100
+                
+                logger.info(f"Epoch {epoch+1}/{actual_epochs} - "
+                          f"Train Loss: {train_loss:.4f}, Val Acc: {val_accuracy:.4f} "
+                          f"[Overall Progress: {overall_progress:.1f}%]")
+        
+        # Return evaluation results
+        return {
+            'val_accuracy': best_val_accuracy,
+            'avg_val_accuracy': sum(val_accuracies) / len(val_accuracies) if val_accuracies else 0,
+            'train_losses': train_losses,
+            'val_accuracies': val_accuracies,
+            'model_state': best_model_state,
+            'config': config,
+            'subset_idx': subset_idx,
+            'epochs_trained': actual_epochs,
+            'resource_level': resource_level
+        }
+        
+    def predict_best_hyperparameters(self):
+        """
+        Predict the best hyperparameters using the trained meta-model.
+        
+        Returns:
+            Dictionary containing the predicted optimal hyperparameters
+            
+        Raises:
+            RuntimeError: If the meta-model is not trained
+        """
+        if not hasattr(self, 'meta_probing') or self.meta_probing is None:
+            raise RuntimeError("Meta-model has not been trained. Call optimize_hyperparameters() first.")
+        
+        logger.info("\nGenerating hyperparameter prediction...")
+        hyperparam_space = self._get_hyperparameter_space()
+        
+        # Generate prediction using meta-model
+        predicted_config = self.meta_probing.predict_best_configuration(hyperparam_space)
+        
+        # Log the prediction
+        logger.info("\nPredicted optimal hyperparameters:")
+        logger.info("-" * 40)
+        for param, value in predicted_config.items():
+            logger.info(f"{param:<20} {value}")
+        logger.info("-" * 40)
+        
+        return predicted_config
+
+    def predict(
+        self, 
+        model: nn.Module, 
+        data_loader: DataLoader,
+        return_probs: bool = False,
+        device: Optional[torch.device] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate predictions for a given model and data loader.
+        
+        Args:
+            model: Trained PyTorch model
+            data_loader: DataLoader for generating predictions
+            return_probs: If True, returns class probabilities; otherwise returns class indices
+            device: Device to run inference on (defaults to model's device)
+            
+        Returns:
+            Dictionary containing predictions and optionally probabilities
+        """
+        device = device or next(model.parameters()).device
+        model.eval()
+        
+        all_preds = []
+        all_probs = []
+        all_targets = []
+        
+        with torch.no_grad():
+            for batch in data_loader:
+                if len(batch) == 2:
+                    inputs, targets = batch
+                    all_targets.extend(targets.cpu().numpy())
+                else:
+                    inputs = batch[0]
+                
+                inputs = inputs.to(device)
+                outputs = model(inputs)
+                
+                if return_probs:
+                    probs = torch.nn.functional.softmax(outputs, dim=1)
+                    all_probs.append(probs.cpu().numpy())
+                
+                _, preds = torch.max(outputs, 1)
+                all_preds.extend(preds.cpu().numpy())
+        
+        result = {
+            'predictions': np.array(all_preds),
+            'targets': np.array(all_targets) if all_targets else None
+        }
+        
+        if return_probs:
+            result['probabilities'] = np.vstack(all_probs)
+            
+        return result
+        
+    def get_parallel_timing_info(self) -> Dict[str, Any]:
+        """
+        Get parallel timing information and metrics from the meta-model optimization process.
+        
+        Returns:
+            Dictionary containing parallel timing metrics such as efficiency, speedup, and variance.
+        """
+        # If we don't have any timing data, return empty dict
+        if not self._parallel_timing_data['batch_times']:
+            return {}
+            
+        # Calculate basic timing statistics
+        batch_times = np.array(self._parallel_timing_data['batch_times'])
+        parallel_efficiencies = np.array(self._parallel_timing_data['parallel_efficiencies']) \
+            if self._parallel_timing_data['parallel_efficiencies'] else np.array([0.0])
+        
+        # Calculate timing variance as coefficient of variation (std/mean)
+        timing_variance = np.std(batch_times) / np.mean(batch_times) if len(batch_times) > 1 else 0.0
+        
+        # Calculate speedup based on parallel efficiency
+        mean_efficiency = np.mean(parallel_efficiencies) if len(parallel_efficiencies) > 0 else 0.0
+        num_workers = self._parallel_timing_data['num_workers']
+        theoretical_speedup = num_workers if num_workers > 0 else 1.0
+        actual_speedup = theoretical_speedup * mean_efficiency if mean_efficiency > 0 else 1.0
+        
+        # Return simplified timing information (only essential metrics)
+        return {
+            'parallel_mode': self._parallel_timing_data['parallel_mode'],
+            'num_workers': num_workers,
+            'efficiency': mean_efficiency,
+            'speedup': actual_speedup,
+            'timing_variance': timing_variance,
+            'total_runtime': time.time() - self._parallel_timing_data['start_time']
+            # Removed detailed batch timing data to reduce log verbosity
+        }
+
+    def _extract_meta_features(
+        self,
+        all_results: List[Dict[str, Any]],
+        config: Any
+    ) -> Dict[str, Any]:
+        """
+        Extract meta-features from evaluation results for meta-model training.
+        
+        Args:
+            all_results: List of evaluation results from hyperparameter configurations
+            config: Configuration object with meta-model settings
+            
+        Returns:
+            Dictionary of meta-features suitable for meta-model training
+        """
+        # Extract features from evaluation results
+        meta_features = {
+            'dataset': getattr(config, 'dataset', 'unknown'),
+            'num_configs': len(all_results),
+            'best_accuracy': 0.0,
+            'worst_accuracy': 1.0,
+            'mean_accuracy': 0.0,
+            'accuracy_std': 0.0,
+            'learning_rate_range': [float('inf'), float('-inf')],  # [min, max]
+            'batch_size_range': [float('inf'), float('-inf')],      # [min, max]
+            'weight_decay_range': [float('inf'), float('-inf')],    # [min, max]
+            'optimizer_counts': {},
+            'configs_by_performance': []
+        }
+        
+        # Process all configuration results
+        accuracies = []
+        for result in all_results:
+            config_data = result.get('config', {})
+            avg_accuracy = result.get('avg_val_accuracy', 0.0)
+            accuracies.append(avg_accuracy)
+            
+            # Track best and worst accuracy
+            meta_features['best_accuracy'] = max(meta_features['best_accuracy'], avg_accuracy)
+            meta_features['worst_accuracy'] = min(meta_features['worst_accuracy'], avg_accuracy)
+            
+            # Track hyperparameter ranges
+            if 'learning_rate' in config_data:
+                lr = config_data['learning_rate']
+                meta_features['learning_rate_range'][0] = min(meta_features['learning_rate_range'][0], lr)
+                meta_features['learning_rate_range'][1] = max(meta_features['learning_rate_range'][1], lr)
+                
+            if 'batch_size' in config_data:
+                bs = config_data['batch_size']
+                meta_features['batch_size_range'][0] = min(meta_features['batch_size_range'][0], bs)
+                meta_features['batch_size_range'][1] = max(meta_features['batch_size_range'][1], bs)
+                
+            if 'weight_decay' in config_data:
+                wd = config_data['weight_decay']
+                meta_features['weight_decay_range'][0] = min(meta_features['weight_decay_range'][0], wd)
+                meta_features['weight_decay_range'][1] = max(meta_features['weight_decay_range'][1], wd)
+            
+            # Track optimizer types
+            optimizer_type = config_data.get('optimizer', 'unknown')
+            if optimizer_type not in meta_features['optimizer_counts']:
+                meta_features['optimizer_counts'][optimizer_type] = 0
+            meta_features['optimizer_counts'][optimizer_type] += 1
+            
+            # Store config with its performance for ranking
+            meta_features['configs_by_performance'].append({
+                'config': config_data,
+                'accuracy': avg_accuracy
+            })
+        
+        # Calculate statistics
+        if accuracies:
+            meta_features['mean_accuracy'] = np.mean(accuracies)
+            meta_features['accuracy_std'] = np.std(accuracies) if len(accuracies) > 1 else 0.0
+        
+        # Sort configs by performance (descending)
+        meta_features['configs_by_performance'].sort(key=lambda x: x['accuracy'], reverse=True)
+        
+        # Add dataset-specific features if available
+        meta_features['num_classes'] = self.num_classes
+        meta_features['input_channels'] = 3  # CIFAR has 3 channels
+        meta_features['input_size'] = 32     # CIFAR images are 32x32
+        
+        return meta_features
+        
+    def predict_with_meta_model(self, model: nn.Module, data_loader, config=None, device=None):
+        """
+        Generate predictions using the meta-model to optimize inference parameters.
+        
+        Args:
+            model: PyTorch model to use for predictions
+            data_loader: DataLoader containing the data to predict on
+            config: Optional configuration dictionary
+            device: Optional device to run predictions on
+            
+        Returns:
+            Predictions generated with optimized parameters
+        """
+        # Default values
+        config = config or {}
+        device = device or next(model.parameters()).device
+        
+        # Extract meta-features for the current model
+        # Since _extract_meta_features now works with evaluation results, we need to create a mock result
+        mock_results = [{
+            'config': config,
+            'avg_val_accuracy': 0.0  # We don't have accuracy yet for prediction
+        }]
+        meta_features = self._extract_meta_features(mock_results, self.config)
+        
+        # Use meta-model to predict optimal batch size and other params
+        pred_config = {}
+        if hasattr(self, 'meta_probing') and hasattr(self.meta_probing, 'predict_optimal_inference_config'):
+            pred_config = self.meta_probing.predict_optimal_inference_config(meta_features)
+        
+        # Update with any user-provided config overrides
+        pred_config.update(config)
+        
+        # Run prediction with optimized parameters
+        return self.predict(model, data_loader, **{k: v for k, v in pred_config.items() 
+                                                if k in {'return_probs', 'batch_size', 'device'}})
