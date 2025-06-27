@@ -1,0 +1,14 @@
+{
+  "dataset": "cifar10",
+  "sample_size": "30",
+  "epochs": 100,
+  "best_config": {
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "optimizer": "sgd",
+    "momentum": 0.9
+  },
+  "best_accuracy": 72.20257743332535,
+  "timestamp": "2025-06-28T02:34:46.238623",
+  "test_accuracy": 89.1013902012579
+}
