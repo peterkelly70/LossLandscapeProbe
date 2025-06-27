@@ -16,7 +16,7 @@ data/cifar-100-python.tar.gz
 
 # Distribution / packaging
 .Python
-.llp
+.llp/*
 build/
 develop-eggs/
 dist/
