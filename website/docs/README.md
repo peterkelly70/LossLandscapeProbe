@@ -4,6 +4,8 @@ A framework for efficient neural network training through two-tiered probing:
 1. **Data sampling** - training on small subsets or limited iterations
 2. **Parameter-space perturbations** - exploring weight-space by random or gradient-based tweaks
 
+**GitHub Repository**: [https://github.com/peterkelly70/LossLandscapeProbe](https://github.com/peterkelly70/LossLandscapeProbe)
+
 This framework implements various strategies described in literature to quickly identify promising hyperparameter settings or regions of the loss landscape that are likely to generalize well.
 
 ## Overview
@@ -34,8 +36,8 @@ Training deep neural networks on large datasets is computationally expensive, es
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/LPM.git
-cd LPM
+git clone https://github.com/peterkelly70/LossLandscapeProbe.git
+cd LossLandscapeProbe
 
 # Create and activate a virtual environment
 python -m venv .lpm_env
@@ -91,6 +93,31 @@ See the `examples` directory for more detailed examples.
 ## Examples
 
 - `examples/cifar10_example.py` - Example of using the framework to find good hyperparameters for training a CNN on CIFAR-10
+
+## Reports
+
+The project includes comprehensive reports for model training and testing on CIFAR-10 and CIFAR-100 datasets with various configurations:
+
+### CIFAR-10 Reports
+- cifar10_10, cifar10_20, cifar10_30, cifar10_40, cifar10_multi
+- Each configuration includes:
+  - Training Report: Detailed metrics and visualizations from the training process
+  - Test Report: Performance evaluation on test data
+  - Training Log: Raw training logs for debugging and analysis
+
+### CIFAR-100 Reports
+- cifar100_10, cifar100_20, cifar100_30, cifar100_40, cifar100_multi
+- Each with the same comprehensive reporting structure
+
+## Future Developments
+
+### Planned Perturbation Data
+Future releases will include enhanced parameter-space perturbation capabilities:
+- Advanced gradient-based perturbation strategies
+- Multi-scale perturbation analysis for deeper landscape understanding
+- Adaptive perturbation magnitude based on training dynamics
+- Integration with uncertainty quantification methods
+- Visualization tools for loss landscape topology exploration
 
 ## References
 

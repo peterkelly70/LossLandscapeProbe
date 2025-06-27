@@ -127,34 +127,76 @@
 
       const mdToHtml = src => {
         const lines = src.split(/\r?\n/);
-        let html = '', listType = null, inCode = false;
+        let html = '', listType = null, inCode = false, inParagraph = false;
         const closeList = () => { if (listType) { html += `</${listType}>`; listType = null; } };
+        const closeParagraph = () => { if (inParagraph) { html += '</p>'; inParagraph = false; } };
 
         for (const line of lines) {
+          // Handle code blocks
           if (inCode) {
             if (line.trim().startsWith('```')) { html += '</code></pre>'; inCode = false; }
             else { html += escapeHTML(line) + '\n'; }
             continue;
           }
 
+          // Start code block
+          if (line.trim().startsWith('```')) { 
+            closeList(); 
+            closeParagraph();
+            inCode = true; 
+            html += '<pre><code>'; 
+            continue; 
+          }
 
-          if (line.trim().startsWith('```')) { closeList(); inCode = true; html += '<pre><code>'; continue; }
+          // Handle horizontal rule
+          if (line.trim() === '---') {
+            closeList();
+            closeParagraph();
+            html += '<hr>';
+            continue;
+          }
 
-
+          // Handle headers
           const h = line.match(/^(#{1,6})\s+(.*)$/);
-          if (h) { closeList(); const lvl = h[1].length; html += `<h${lvl}>${inline(h[2])}</h${lvl}>`; continue; }
+          if (h) { 
+            closeList(); 
+            closeParagraph();
+            const lvl = h[1].length; 
+            html += `<h${lvl}>${inline(h[2])}</h${lvl}>`; 
+            continue; 
+          }
 
-
+          // Handle lists
           const li = line.match(/^\s*([*+-]|\d+\.)\s+(.*)$/);
           if (li) {
+            closeParagraph();
             const newType = /\d+\./.test(li[1]) ? 'ol' : 'ul';
             if (!listType) { html += `<${newType}>`; listType = newType; }
             else if (listType !== newType) { html += `</${listType}><${newType}>`; listType = newType; }
-            html += `<li>${inline(li[2])}</li>`; continue;
+            html += `<li>${inline(li[2])}</li>`; 
+            continue;
           }
 
+          // Handle empty lines - close paragraph
+          if (line.trim() === '') {
+            closeList();
+            closeParagraph();
+            continue;
+          }
+
+          // Handle regular paragraph text
+          if (!inParagraph) {
+            html += '<p>';
+            inParagraph = true;
+          } else {
+            html += '<br>';
+          }
+          html += inline(line);
         }
+        
+        // Close any open tags
         closeList();
+        closeParagraph();
         if (inCode) html += '</code></pre>';
         return html;
       };
@@ -195,6 +237,12 @@
         },
 
         async load (path) {
+          // Handle external links (GitHub repository, etc.)
+          if (path.startsWith('http')) {
+            window.open(path, '_blank');
+            return;
+          }
+          
           const ext = path.includes('.') ? path.split('.').pop().toLowerCase() : '';
 
           // HTML reports inside an iframe
@@ -216,7 +264,9 @@
 
           // Markdown or other text
           try {
-            const txt = await (await fetch(path)).text();
+            // Add cache-busting query parameter to prevent browser caching
+            const cacheBuster = `?t=${new Date().getTime()}`;
+            const txt = await (await fetch(path + cacheBuster)).text();
             this.content = ext === 'md' ? mdToHtml(txt) : `<pre>${escapeHTML(txt)}</pre>`;
           } catch (e) {
             this.content = `<p style='color:red;'>${escapeHTML(e.message)}</p>`;
