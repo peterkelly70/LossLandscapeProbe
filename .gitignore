@@ -8,11 +8,15 @@ __pycache__/
 
 # data - ignore all CIFAR dataset files
 cifar-100-python.tar.gz
-llp/data/cifar-10-python.tar.gz
-data/cifar-10-python.tar.gz
-data/cifar-10-batches-py/
-data/cifar-100-python/
-data/cifar-100-python.tar.gz
+cifar-10-python.tar.gz
+
+# Ignore all .tar.gz files
+*.tar.gz
+
+# Ignore any data/ directory, anywhere
+**/data/
+**/checkpoints/
+**/meta_model/
 
 # Distribution / packaging
 .Python
