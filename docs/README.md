@@ -1,36 +1,34 @@
 # Loss Landscape Probing for Model Optimization (LLP)
 
-A framework for efficient neural network training through two-tiered probing:
-1. **Data sampling** - training on small subsets or limited iterations
-2. **Parameter-space perturbations** - exploring weight-space by random or gradient-based tweaks
+A framework for efficient neural network training through meta-learning:
+1. **Meta-model training** - training on different sample sizes of CIFAR datasets
+2. **Loss landscape analysis** - visualizing and analyzing model performance across configurations
 
 **GitHub Repository**: [https://github.com/peterkelly70/LossLandscapeProbe](https://github.com/peterkelly70/LossLandscapeProbe)
 
-This framework implements various strategies described in literature to quickly identify promising hyperparameter settings or regions of the loss landscape that are likely to generalize well.
+This framework implements a meta-learning approach to quickly identify promising hyperparameter settings for neural network training on image classification tasks.
 
 ## Overview
 
-Training deep neural networks on large datasets is computationally expensive, especially when tuning hyperparameters. This framework provides a two-tiered probing approach to efficiently find promising hyperparameter configurations and model regions:
+Training deep neural networks on large datasets is computationally expensive, especially when tuning hyperparameters. This framework provides a meta-learning approach to efficiently find promising hyperparameter configurations:
 
-- **Tier 1: Data Sampling Probes**
-  - Train on small random subsets or limited iterations
-  - Implement methods like Successive Halving, Hyperband, and learning curve extrapolation
-  - Quickly filter out unpromising configurations without full training
+- **Meta-Model Training**
+  - Train on different sample sizes of CIFAR-10/100 datasets (10%, 20%, 30%, 40%)
+  - Evaluate multiple hyperparameter configurations across these samples
+  - Build a meta-model that predicts optimal hyperparameters for the full dataset
 
-- **Tier 2: Parameter-Space Probing**
-  - Explore weight-space by random or gradient-based perturbations
-  - Implement methods like Sharpness-Aware Minimization (SAM), Stochastic Weight Averaging (SWA), and Entropy-SGD
-  - Find flat, generalizable regions of the loss landscape
+- **Loss Landscape Analysis**
+  - Visualize and analyze the loss landscape of trained models
+  - Compare different configurations through an interactive web interface
+  - Examine per-class performance metrics for detailed analysis
 
 ## Features
 
-- **Successive Halving (SHA)** - Allocate small training budget to many configs, progressively focus resources on better performers
-- **Hyperband** - Run multiple SHA brackets with different initial budgets
-- **Learning curve extrapolation** - Predict final performance from partial training
-- **Sharpness-Aware Minimization (SAM)** - Optimize for uniformly low loss in parameter neighborhoods
-- **Stochastic Weight Averaging (SWA)** - Average weights from different points along the training trajectory
-- **Entropy-SGD** - Augment loss with local entropy term to favor flatter regions
-- **Two-tier evaluation** - Combine data sampling and parameter perturbation metrics for better generalization prediction
+- **Meta-model training** - Learn from multiple dataset sample sizes to predict optimal hyperparameters
+- **Interactive visualization** - Explore training results through a web-based interface
+- **Per-class accuracy analysis** - Detailed breakdown of model performance by class
+- **Confusion matrix visualization** - Identify patterns in model predictions
+- **Sample prediction display** - View example predictions with corresponding images
 
 ## Installation
 
@@ -52,40 +50,34 @@ pip install -r requirements.txt
 Here's a simple example of how to use the framework:
 
 ```python
-from lpm.two_tier_probing import TwoTierProbing
+from llp.meta_model import MetaModel
+from llp.cifar_training import train_model
 
 # Define hyperparameter configurations to search
 configs = [
-    {'learning_rate': 0.01, 'weight_decay': 5e-4, ...},
-    {'learning_rate': 0.1, 'weight_decay': 5e-4, ...},
+    {'learning_rate': 0.01, 'weight_decay': 5e-4, 'optimizer': 'sgd', 'momentum': 0.9},
+    {'learning_rate': 0.1, 'weight_decay': 5e-4, 'optimizer': 'sgd', 'momentum': 0.9},
     # ...
 ]
 
-# Create Two-Tier Probing object
-probing = TwoTierProbing(
+# Create Meta-Model object
+meta_model = MetaModel(
     configs=configs,
     model_fn=create_model,
-    dataset_fn=get_data_loaders,
-    criterion=loss_function,
+    dataset_fn=get_cifar10_loaders,
+    criterion=nn.CrossEntropyLoss(),
     optimizer_fn=create_optimizer
 )
 
-# Run Successive Halving with two-tier evaluation
-results = probing.run_successive_halving(
-    min_resource=0.1,  # Start with 10% of data
-    max_resource=0.5,  # End with 50% of data
-    reduction_factor=2,
-    measure_flatness=True
-)
+# Train meta-model on different sample sizes
+meta_model.train(sample_sizes=[0.1, 0.2, 0.3, 0.4])
 
-# Select best configurations
-best_configs = probing.select_best_configs(n=2, criterion='generalization_score')
+# Get predicted best configuration
+best_config = meta_model.predict_optimal_hyperparameters()
 
-# Train the best config with SAM
-sam_result = probing.train_with_sam(config=best_configs[0])
-
-# Train the best config with SWA
-regular_result, swa_result = probing.train_with_swa(config=best_configs[0])
+# Train with the predicted optimal hyperparameters
+model, history, test_acc = train_model(best_config, epochs=100)
+print(f"Test accuracy with meta-model predicted params: {test_acc:.4f}")
 ```
 
 See the `examples` directory for more detailed examples.

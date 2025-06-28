@@ -8,7 +8,7 @@
     "optimizer": "sgd",
     "momentum": 0.99
   },
-  "best_accuracy": 77.4794623146613,
-  "timestamp": "2025-06-28T02:27:25.642312",
-  "test_accuracy": 89.94534569445072
+  "best_accuracy": 75.35516344131516,
+  "timestamp": "2025-06-28T09:47:39.141284",
+  "test_accuracy": 89.45080189024087
 }

@@ -3,12 +3,12 @@
   "sample_size": "20",
   "epochs": 100,
   "best_config": {
-    "learning_rate": 0.01,
-    "weight_decay": 0.01,
+    "learning_rate": 0.001,
+    "weight_decay": 0.001,
     "optimizer": "adam",
-    "momentum": 0.95
+    "momentum": 0.0
   },
-  "best_accuracy": 73.14060438227554,
-  "timestamp": "2025-06-28T02:28:29.140627",
-  "test_accuracy": 88.38444063016314
+  "best_accuracy": 78.36298516273038,
+  "timestamp": "2025-06-28T09:45:36.381497",
+  "test_accuracy": 89.52217254414197
 }
